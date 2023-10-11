@@ -1,6 +1,6 @@
-# Chartboost Mediation {Partner} Adapter
+# Chartboost Mediation BidMachine Adapter
 
-The Chartboost Mediation {Partner} adapter mediates {Partner} via the Chartboost Mediation SDK.
+The Chartboost Mediation BidMachine adapter mediates BidMachine via the Chartboost Mediation SDK.
 
 ## Minimum Requirements
 
@@ -8,14 +8,14 @@ The Chartboost Mediation {Partner} adapter mediates {Partner} via the Chartboost
 | ------ | ------ |
 | Chartboost Mediation SDK | 4.0.0+ |
 | Cocoapods | 1.11.3+ |
-| iOS | {Partner's minimum iOS version} |
+| iOS | 12 |
 | Xcode | 14.1+ |
 
 ## Integration
 
 In your `Podfile`, add the following entry:
 ```
-pod 'ChartboostMediationAdapter{Partner}'
+pod 'ChartboostMediationAdapterBidMachine'
 ```
 
 ## Contributions
