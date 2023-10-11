@@ -29,14 +29,13 @@ final class BidMachineAdapterInterstitialAd: BidMachineAdapterAd, PartnerAd {
             return
         }
 
-        // https://docs.bidmachine.io/docs/ad-request
-        // Once our placements are live, there are a few things to figure out with trial
-        // and error. First, see if '.populate' can be called multiple times.
-        // That way, with.Payload() could only be called when there's an ADM (assuming I'm
-        // correct about that being what they mean by payload. Maybe PlacementID isn't needed
-        // when we're loading an ADM, and vice versa?
-        config.populate {
-            $0.withPlacementId(request.partnerPlacement)
+        loadCompletion = completion
+
+        // There's no harm in setting the placement ID when loading a bidding ad, but calling
+        // .withPayload(request.adm ?? "") causes an error when BidMachine parses the empty string
+        config.populate { $0.withPlacementId(request.partnerPlacement) }
+        if let adm = request.adm {
+            config.populate { $0.withPayload(adm) }
         }
 
         BidMachineSdk.shared.interstitial(config) { [weak self] ad, error in
@@ -49,9 +48,7 @@ final class BidMachineAdapterInterstitialAd: BidMachineAdapterAd, PartnerAd {
                 completion(.failure(chartboostMediationError))
                 return
             }
-            loadCompletion = completion
             self.ad = ad
-            ad.controller = viewController
             ad.delegate = self
             ad.loadAd()
         }
@@ -63,6 +60,7 @@ final class BidMachineAdapterInterstitialAd: BidMachineAdapterAd, PartnerAd {
     /// - parameter completion: Closure to be performed once the ad has been shown.
     func show(with viewController: UIViewController, completion: @escaping (Result<PartnerEventDetails, Error>) -> Void) {
         log(.showStarted)
+        ad?.controller = viewController
         guard let ad = ad, ad.canShow else {
             let error = error(.showFailureAdNotReady)
             log(.showFailed(error))
