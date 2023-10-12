@@ -21,6 +21,7 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerAd {
 
         let bannerType = BidMachineApiCore.PlacementFormat.from(size: request.size)
 
+        // Make request configuration
         let config: BidMachineRequestConfigurationProtocol
         do {
             config = try BidMachineSdk.shared.requestConfiguration(bannerType)
@@ -29,6 +30,15 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerAd {
             log(.loadFailed(chartboostMediationError))
             completion(.failure(chartboostMediationError))
             return
+        }
+
+        self.loadCompletion = completion
+
+        // There's no harm in setting the placement ID when loading a bidding ad, but calling
+        // .withPayload(request.adm ?? "") causes an error when BidMachine parses the empty string
+        config.populate { $0.withPlacementId(request.partnerPlacement) }
+        if let adm = request.adm {
+            config.populate { $0.withPayload(adm) }
         }
 
         BidMachineSdk.shared.banner(config) { [weak self] ad, error in
@@ -41,8 +51,7 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerAd {
                 completion(.failure(chartboostMediationError))
                 return
             }
-            self.loadCompletion = completion
-            self.ad = ad
+            self.inlineView = ad
             ad.controller = viewController
             ad.delegate = self
             ad.loadAd()
@@ -62,8 +71,8 @@ extension BidMachineAdapterBannerAd: BidMachineAdDelegate {
     func didLoadAd(_ ad: BidMachine.BidMachineAdProtocol) {
         // Because 'show' isn't a separate step for banners, we don't declare a load success until
         // after any show checks are done
-        guard let bannerAdView = ad as? UIView,
-              ad.canShow else {
+        guard let bannerAdView = ad as? BidMachineBanner,
+              bannerAdView.canShow else {
             let loadError = error(.loadFailureUnknown)
             log(.loadFailed(loadError))
             loadCompletion?(.failure(loadError))
@@ -77,8 +86,6 @@ extension BidMachineAdapterBannerAd: BidMachineAdDelegate {
         loadCompletion = nil
 
         log(.showStarted)
-        // 'ad' parameter has already been cast as a UIView so it can be passed to addSubview()
-        self.inlineView?.addSubview(bannerAdView)
     }
 
     func didFailLoadAd(_ ad: BidMachine.BidMachineAdProtocol, _ error: Error) {
