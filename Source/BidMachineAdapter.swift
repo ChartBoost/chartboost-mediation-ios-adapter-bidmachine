@@ -87,20 +87,34 @@ final class BidMachineAdapter: PartnerAdapter {
     /// - parameter applies: `true` if GDPR applies, `false` if not, `nil` if the publisher has not provided this information.
     /// - parameter status: One of the `GDPRConsentStatus` values depending on the user's preference.
     func setGDPR(applies: Bool?, status: GDPRConsentStatus) {
-//        log(.privacyUpdated(setting: "consentsToTracking", value: consentString))
+        if let applies = applies {
+            BidMachineAdapterConfiguration.gdprZone = applies
+            log(.privacyUpdated(setting: "gdprZone", value: applies))
+        }
+
+        // In the case where status == .unknown, we do nothing
+        if status == .denied {
+            BidMachineAdapterConfiguration.gdprConsent = false
+            log(.privacyUpdated(setting: "gdprConsent", value: false))
+        } else if status == .granted {
+            BidMachineAdapterConfiguration.gdprConsent = true
+            log(.privacyUpdated(setting: "gdprConsent", value: true))
+        }
     }
     
     /// Indicates the CCPA status both as a boolean and as an IAB US privacy string.
     /// - parameter hasGivenConsent: A boolean indicating if the user has given consent.
     /// - parameter privacyString: An IAB-compliant string indicating the CCPA status.
     func setCCPA(hasGivenConsent: Bool, privacyString: String) {
-//        log(.privacyUpdated(setting: "ccpaConsent", value: consent))
+        BidMachineAdapterConfiguration.usPrivacyString = privacyString
+        log(.privacyUpdated(setting: "UserDefaults CCPA string", value: privacyString))
     }
     
     /// Indicates if the user is subject to COPPA or not.
     /// - parameter isChildDirected: `true` if the user is subject to COPPA, `false` otherwise.
     func setCOPPA(isChildDirected: Bool) {
-//        log(.privacyUpdated(setting: "coppaExempt", value: !isChildDirected))
+        BidMachineAdapterConfiguration.coppa = isChildDirected
+        log(.privacyUpdated(setting: "coppa", value: isChildDirected))
     }
     
     /// Creates a new ad object in charge of communicating with a single partner SDK ad instance.
