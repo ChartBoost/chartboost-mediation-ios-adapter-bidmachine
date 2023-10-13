@@ -107,7 +107,6 @@ extension BidMachineAdapterBannerAd: BidMachineAdDelegate {
     }
 
     func didDismissAd(_ ad: BidMachineAdProtocol) {
-        // TODO: ? https://github.com/ChartBoost/chartboost-mediation-ios-adapter-vungle/pull/44#discussion_r1271012031
         log(.delegateCallIgnored)
     }
 
