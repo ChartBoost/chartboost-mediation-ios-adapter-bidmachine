@@ -16,20 +16,20 @@ import Foundation
     // "1NN-" = Specification v1, no notice given, user has not opted-out, LSPA not applicable
     private static let DEFAULT_PRIVACY_STRING = "1NN-"
 
-    /// Flag that specifies whether the BidMachine SDK starts up in test mode
-    /// Default value is 'false'
+    /// Init flag for starting up BidMachine SDK in test mode.
+    /// Default value is 'false'.
     @objc public static var testMode: Bool = false
 
-    /// Flag that specifies whether BidMachine SDK logging mode is on
-    /// Default value is 'false'
+    /// Init flag for turning on BidMachine SDK general logging.
+    /// Default value is 'false'.
     @objc public static var logging: Bool = false
 
-    /// Flag that specifies whether the BidMachine SDK bid logging is on
-    /// Default value is 'false'
+    /// Init flag for turning on BidMachine SDK bidding logging.
+    /// Default value is 'false'.
     @objc public static var bidLogging: Bool = false
 
-    /// Flag that specifies whether the BidMachine SDK event logging is on
-    /// Default value is 'false'
+    /// Init flag for turning on BidMachine SDK event logging.
+    /// Default value is 'false'.
     @objc public static var eventLogging: Bool = false
 
 

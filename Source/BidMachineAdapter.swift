@@ -107,14 +107,14 @@ final class BidMachineAdapter: PartnerAdapter {
     /// - parameter privacyString: An IAB-compliant string indicating the CCPA status.
     func setCCPA(hasGivenConsent: Bool, privacyString: String) {
         BidMachineAdapterConfiguration.usPrivacyString = privacyString
-        log(.privacyUpdated(setting: "UserDefaults CCPA string", value: privacyString))
+        log(.privacyUpdated(setting: "usPrivacyString", value: privacyString))
     }
     
     /// Indicates if the user is subject to COPPA or not.
     /// - parameter isChildDirected: `true` if the user is subject to COPPA, `false` otherwise.
     func setCOPPA(isChildDirected: Bool) {
         BidMachineAdapterConfiguration.coppa = isChildDirected
-        log(.privacyUpdated(setting: "coppa", value: isChildDirected))
+        log(.privacyUpdated(setting: "COPPA", value: isChildDirected))
     }
     
     /// Creates a new ad object in charge of communicating with a single partner SDK ad instance.

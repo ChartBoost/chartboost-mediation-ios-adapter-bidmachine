@@ -4,7 +4,7 @@ Pod::Spec.new do |spec|
   spec.license     = { :type => 'MIT', :file => 'LICENSE.md' }
   spec.homepage    = 'https://github.com/ChartBoost/chartboost-mediation-ios-adapter-bidmachine'
   spec.authors     = { 'Chartboost' => 'https://www.chartboost.com/' }
-  spec.summary     = 'Chartboost Mediation iOS SDK Reference adapter.'
+  spec.summary     = 'Chartboost Mediation iOS SDK BidMachine adapter.'
   spec.description = 'BidMachine Adapters for mediating through Chartboost Mediation. Supported ad formats: banner, interstitial, rewarded.'
 
   # Source
