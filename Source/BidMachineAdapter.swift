@@ -42,18 +42,28 @@ final class BidMachineAdapter: PartnerAdapter {
     /// - parameter completion: Closure to be performed by the adapter when it's done setting up. It should include an error indicating the cause for failure or `nil` if the operation finished successfully.
     func setUp(with configuration: PartnerConfiguration, completion: @escaping (Error?) -> Void) {
         log(.setUpStarted)
+
+        // Populate only the info we have non-nil saved values for
+        if let coppa = BidMachineAdapterConfiguration.coppa {
+            BidMachineSdk.shared.regulationInfo.populate { $0.withCOPPA(coppa) }
+        }
+        if let gdprZone = BidMachineAdapterConfiguration.gdprZone {
+            BidMachineSdk.shared.regulationInfo.populate { $0.withGDPRZone(gdprZone) }
+        }
+        if let gdprConsent = BidMachineAdapterConfiguration.gdprConsent {
+            BidMachineSdk.shared.regulationInfo.populate { $0.withGDPRConsent(gdprConsent) }
+        }
+        if let usPrivacyString = BidMachineAdapterConfiguration.usPrivacyString {
+            BidMachineSdk.shared.regulationInfo.populate { $0.withUSPrivacyString(usPrivacyString) }
+        }
+        // These settings all have default values
         BidMachineSdk.shared.populate {
             $0.withTestMode(BidMachineAdapterConfiguration.testMode)
                 .withLoggingMode(BidMachineAdapterConfiguration.logging)
                 .withBidLoggingMode(BidMachineAdapterConfiguration.bidLogging)
                 .withEventLoggingMode(BidMachineAdapterConfiguration.eventLogging)
         }
-        BidMachineSdk.shared.regulationInfo.populate {
-            $0.withCOPPA(BidMachineAdapterConfiguration.coppa)
-                .withGDPRZone(BidMachineAdapterConfiguration.gdprZone)
-                .withGDPRConsent(BidMachineAdapterConfiguration.gdprConsent)
-                .withUSPrivacyString(BidMachineAdapterConfiguration.usPrivacyString)
-        }
+
         guard let sourceID = configuration.credentials[SOURCE_ID_KEY] as? String else {
             let error = error(.initializationFailureInvalidCredentials, description: "The 'source ID' was invalid")
             log(.setUpFailed(error))
@@ -94,15 +104,21 @@ final class BidMachineAdapter: PartnerAdapter {
         if let applies = applies {
             BidMachineAdapterConfiguration.gdprZone = applies
             log(.privacyUpdated(setting: "gdprZone", value: applies))
+            // It is unknown whether populating this value after initializing the BidMachine SDK does anything
+            BidMachineSdk.shared.regulationInfo.populate { $0.withGDPRZone(applies) }
         }
 
         // In the case where status == .unknown, we do nothing
         if status == .denied {
             BidMachineAdapterConfiguration.gdprConsent = false
             log(.privacyUpdated(setting: "gdprConsent", value: false))
+            // It is unknown whether populating this value after initializing the BidMachine SDK does anything
+            BidMachineSdk.shared.regulationInfo.populate { $0.withGDPRConsent(false) }
         } else if status == .granted {
             BidMachineAdapterConfiguration.gdprConsent = true
             log(.privacyUpdated(setting: "gdprConsent", value: true))
+            // It is unknown whether populating this value after initializing the BidMachine SDK does anything
+            BidMachineSdk.shared.regulationInfo.populate { $0.withGDPRConsent(true) }
         }
     }
     
@@ -112,6 +128,8 @@ final class BidMachineAdapter: PartnerAdapter {
     func setCCPA(hasGivenConsent: Bool, privacyString: String) {
         BidMachineAdapterConfiguration.usPrivacyString = privacyString
         log(.privacyUpdated(setting: "usPrivacyString", value: privacyString))
+        // It is unknown whether populating this value after initializing the BidMachine SDK does anything
+        BidMachineSdk.shared.regulationInfo.populate { $0.withUSPrivacyString(privacyString) }
     }
     
     /// Indicates if the user is subject to COPPA or not.
@@ -119,6 +137,8 @@ final class BidMachineAdapter: PartnerAdapter {
     func setCOPPA(isChildDirected: Bool) {
         BidMachineAdapterConfiguration.coppa = isChildDirected
         log(.privacyUpdated(setting: "COPPA", value: isChildDirected))
+        // It is unknown whether populating this value after initializing the BidMachine SDK does anything
+        BidMachineSdk.shared.regulationInfo.populate { $0.withCOPPA(isChildDirected) }
     }
     
     /// Creates a new ad object in charge of communicating with a single partner SDK ad instance.

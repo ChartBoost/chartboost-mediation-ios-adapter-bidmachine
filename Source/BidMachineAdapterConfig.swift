@@ -11,10 +11,7 @@ import Foundation
     private static let COPPA_KEY = "com.chartboost.adapter.bidmachine.coppa"
     private static let GDPR_ZONE_KEY = "com.chartboost.adapter.bidmachine.gdprzone"
     private static let GDPR_CONSENT_KEY = "com.chartboost.adapter.bidmachine.gdprconsent"
-    private static let US_PRIVACY_STRING = "com.chartboost.adapter.bidmachine.usprivacystring"
-    // IAB US Privacy String defined at: https://github.com/InteractiveAdvertisingBureau/USPrivacy/blob/master/CCPA/US%20Privacy%20String.md
-    // "1NN-" = Specification v1, no notice given, user has not opted-out, LSPA not applicable
-    private static let DEFAULT_PRIVACY_STRING = "1NN-"
+    private static let US_PRIVACY_STRING_KEY = "com.chartboost.adapter.bidmachine.usprivacystring"
 
     /// Init flag for starting up BidMachine SDK in test mode.
     /// Default value is 'false'.
@@ -32,47 +29,23 @@ import Foundation
     /// Default value is 'false'.
     @objc public static var eventLogging: Bool = false
 
-
-    // 'UserDefaults.standard.string(forKey:)' returns 'nil' if there is no value for a key.
-    // But 'UserDefaults.standard.bool(forKey:)' returns 'false' if there is no value for a key.
-    // So for bool values we need to explicitly check to see if there's already a
-    // stored value in order to apply default values other than false.
-
-    @objc public static var coppa: Bool {
-        get { 
-            // If the value hasn't been stored during a previous launch, default to true
-            if UserDefaults.standard.object(forKey: COPPA_KEY) == nil {
-                UserDefaults.standard.setValue(true, forKey: COPPA_KEY)
-            }
-            return UserDefaults.standard.bool(forKey: COPPA_KEY)
-        }
+    public static var coppa: Bool? {
+        get { UserDefaults.standard.value(forKey: COPPA_KEY) as? Bool }
         set { UserDefaults.standard.setValue(newValue, forKey: COPPA_KEY) }
     }
 
-    @objc public static var gdprZone: Bool {
-        get {
-            // If the value hasn't been stored during a previous launch, default to true
-            if UserDefaults.standard.object(forKey: GDPR_ZONE_KEY) == nil {
-                UserDefaults.standard.setValue(true, forKey: GDPR_ZONE_KEY)
-            }
-            return UserDefaults.standard.bool(forKey: GDPR_ZONE_KEY)
-        }
+    public static var gdprZone: Bool? {
+        get { UserDefaults.standard.value(forKey: GDPR_ZONE_KEY) as? Bool }
         set { UserDefaults.standard.setValue(newValue, forKey: GDPR_ZONE_KEY) }
     }
 
-    @objc public static var gdprConsent: Bool {
-        get {
-            // Will default to 'false' if there is no stored value
-            return UserDefaults.standard.bool(forKey: GDPR_CONSENT_KEY)
-        }
+    public static var gdprConsent: Bool? {
+        get { UserDefaults.standard.value(forKey: GDPR_CONSENT_KEY) as? Bool }
         set { UserDefaults.standard.setValue(newValue, forKey: GDPR_CONSENT_KEY) }
     }
 
-    @objc public static var usPrivacyString: String {
-        get {
-            // If the value hasn't been stored during a previous launch, use safe default
-            return UserDefaults.standard.string(forKey: US_PRIVACY_STRING) ?? DEFAULT_PRIVACY_STRING
-        }
-        set { UserDefaults.standard.setValue(newValue, forKey: US_PRIVACY_STRING) }
+    public static var usPrivacyString: String? {
+        get { UserDefaults.standard.string(forKey: US_PRIVACY_STRING_KEY) }
+        set { UserDefaults.standard.setValue(newValue, forKey: US_PRIVACY_STRING_KEY) }
     }
 }
