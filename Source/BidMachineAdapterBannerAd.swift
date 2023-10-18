@@ -19,7 +19,12 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerAd {
     func load(with viewController: UIViewController?, completion: @escaping (Result<PartnerEventDetails, Error>) -> Void) {
         log(.loadStarted)
 
-        let bannerType = BidMachineApiCore.PlacementFormat.from(size: request.size)
+        guard let bannerType = BidMachineApiCore.PlacementFormat.from(size: request.size ?? IABStandardAdSize) else {
+            let error = error(.loadFailureInvalidBannerSize)
+            log(.loadFailed(error))
+            completion(.failure(error))
+            return
+        }
 
         // Make request configuration
         let config: BidMachineRequestConfigurationProtocol
@@ -137,17 +142,29 @@ extension BidMachineAdapterBannerAd: BidMachineAdDelegate {
 }
 
 extension BidMachineApiCore.PlacementFormat {
-    static func from(size: CGSize?) -> BidMachineApiCore.PlacementFormat {
-        let height = size?.height ?? 50
-        switch height {
-        case 50...89:
+    static func from(size requestedSize: CGSize) -> BidMachineApiCore.PlacementFormat? {
+        let sizes = [IABLeaderboardAdSize, IABMediumAdSize, IABStandardAdSize]
+        // Find the largest size that can fit in the requested size.
+        var bestFit: CGSize? = nil
+        for size in sizes {
+            // If height is 0, the pub has requested an ad of any height, so only the width matters.
+            if requestedSize.width >= size.width &&
+                (size.height == 0 || requestedSize.height >= size.height) {
+                bestFit = size
+            }
+        }
+
+        // Translate IAB size to a BidMachine placement format
+        switch bestFit {
+        case IABStandardAdSize:
             return .banner320x50
-        case 90...249:
-            return .banner728x90
-        case 250...:
+        case IABMediumAdSize:
             return .banner300x250
+        case IABLeaderboardAdSize:
+            return .banner728x90
         default:
-            return .banner320x50
+            // The requested size cannot fit any fixed size banners.
+            return nil
         }
     }
 }
