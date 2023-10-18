@@ -98,7 +98,8 @@ extension BidMachineAdapterRewardedAd: BidMachineAdDelegate {
     }
 
     func didDismissAd(_ ad: BidMachineAdProtocol) {
-        log(.delegateCallIgnored)
+        log(.didDismiss(error: nil))
+        delegate?.didDismiss(self, details: [:], error: nil)  ?? log(.delegateUnavailable)
     }
 
     func willPresentScreen(_ ad: BidMachineAdProtocol) {

@@ -41,7 +41,7 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerAd {
             config.populate { $0.withPayload(adm) }
         }
 
-        BidMachineSdk.shared.banner(config) { [weak self] ad, error in
+        BidMachineSdk.shared.banner(config) { [weak self, weak viewController] ad, error in
             guard let self else {
                 return
             }
@@ -75,7 +75,7 @@ extension BidMachineAdapterBannerAd: BidMachineAdDelegate {
               bannerAdView.canShow else {
             let loadError = error(.loadFailureUnknown)
             log(.loadFailed(loadError))
-            loadCompletion?(.failure(loadError))
+            loadCompletion?(.failure(loadError)) ?? log(.loadResultIgnored)
             loadCompletion = nil
             let showError = error(.showFailureAdNotReady)
             log(.showFailed(showError))
@@ -97,13 +97,11 @@ extension BidMachineAdapterBannerAd: BidMachineAdDelegate {
     func didPresentAd(_ ad: BidMachineAdProtocol) {
         log(.showSucceeded)
         showCompletion?(.success([:])) ?? log(.showResultIgnored)
-        showCompletion = nil
     }
 
     func didFailPresentAd(_ ad: BidMachineAdProtocol, _ error: Error) {
         log(.showFailed(error))
         showCompletion?(.failure(error)) ?? log(.showResultIgnored)
-        showCompletion = nil
     }
 
     func didDismissAd(_ ad: BidMachineAdProtocol) {
