@@ -19,7 +19,8 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerAd {
     func load(with viewController: UIViewController?, completion: @escaping (Result<PartnerEventDetails, Error>) -> Void) {
         log(.loadStarted)
 
-        guard let bannerType = BidMachineApiCore.PlacementFormat.from(size: request.size ?? IABStandardAdSize) else {
+        guard let size = request.size,
+              let bannerType = BidMachineApiCore.PlacementFormat.from(size: fixedBannerSize(for: size)) else {
             let error = error(.loadFailureInvalidBannerSize)
             log(.loadFailed(error))
             completion(.failure(error))
@@ -87,6 +88,12 @@ extension BidMachineAdapterBannerAd: BidMachineAdDelegate {
             return
         }
         log(.loadSucceeded)
+        var partnerDetails: [String: String] = [:]
+        if let loadedSize = fixedBannerSize(for: request.size ?? IABStandardAdSize) {
+            partnerDetails["bannerWidth"] = "\(loadedSize.width)"
+            partnerDetails["bannerHeight"] = "\(loadedSize.height)"
+            partnerDetails["bannerType"] = "0" // Fixed banner
+        }
         loadCompletion?(.success([:])) ?? log(.loadResultIgnored)
         loadCompletion = nil
 
@@ -142,20 +149,9 @@ extension BidMachineAdapterBannerAd: BidMachineAdDelegate {
 }
 
 extension BidMachineApiCore.PlacementFormat {
-    static func from(size requestedSize: CGSize) -> BidMachineApiCore.PlacementFormat? {
-        let sizes = [IABLeaderboardAdSize, IABMediumAdSize, IABStandardAdSize]
-        // Find the largest size that can fit in the requested size.
-        var bestFit: CGSize? = nil
-        for size in sizes {
-            // If height is 0, the pub has requested an ad of any height, so only the width matters.
-            if requestedSize.width >= size.width &&
-                (size.height == 0 || requestedSize.height >= size.height) {
-                bestFit = size
-            }
-        }
-
+    static func from(size: CGSize?) -> BidMachineApiCore.PlacementFormat? {
         // Translate IAB size to a BidMachine placement format
-        switch bestFit {
+        switch size {
         case IABStandardAdSize:
             return .banner320x50
         case IABMediumAdSize:
@@ -163,8 +159,24 @@ extension BidMachineApiCore.PlacementFormat {
         case IABLeaderboardAdSize:
             return .banner728x90
         default:
-            // The requested size cannot fit any fixed size banners.
+            // Not a standard IAB size
             return nil
         }
+    }
+}
+
+extension BidMachineAdapterBannerAd {
+    private func fixedBannerSize(for requestedSize: CGSize) -> CGSize? {
+        let sizes = [IABLeaderboardAdSize, IABMediumAdSize, IABStandardAdSize]
+        // Find the largest size that can fit in the requested size.
+        for size in sizes {
+            // If height is 0, the pub has requested an ad of any height, so only the width matters.
+            if requestedSize.width >= size.width &&
+                (size.height == 0 || requestedSize.height >= size.height) {
+                return size
+            }
+        }
+        // The requested size cannot fit any fixed size banners.
+        return nil
     }
 }
