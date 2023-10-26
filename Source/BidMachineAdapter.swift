@@ -9,9 +9,33 @@ import UIKit
 import BidMachine
 
 final class BidMachineAdapter: PartnerAdapter {
+    private let COPPA_KEY = "com.chartboost.adapter.bidmachine.coppa"
+    private let GDPR_ZONE_KEY = "com.chartboost.adapter.bidmachine.gdprzone"
+    private let GDPR_CONSENT_KEY = "com.chartboost.adapter.bidmachine.gdprconsent"
+    private let US_PRIVACY_STRING_KEY = "com.chartboost.adapter.bidmachine.usprivacystring"
 
     private let SOURCE_ID_KEY = "source_id"
-    
+
+    private var coppa: Bool? {
+        get { UserDefaults.standard.value(forKey: COPPA_KEY) as? Bool }
+        set { UserDefaults.standard.setValue(newValue, forKey: COPPA_KEY) }
+    }
+
+    private var gdprZone: Bool? {
+        get { UserDefaults.standard.value(forKey: GDPR_ZONE_KEY) as? Bool }
+        set { UserDefaults.standard.setValue(newValue, forKey: GDPR_ZONE_KEY) }
+    }
+
+    private var gdprConsent: Bool? {
+        get { UserDefaults.standard.value(forKey: GDPR_CONSENT_KEY) as? Bool }
+        set { UserDefaults.standard.setValue(newValue, forKey: GDPR_CONSENT_KEY) }
+    }
+
+    private var usPrivacyString: String? {
+        get { UserDefaults.standard.string(forKey: US_PRIVACY_STRING_KEY) }
+        set { UserDefaults.standard.setValue(newValue, forKey: US_PRIVACY_STRING_KEY) }
+    }
+
     /// The version of the partner SDK.
     let partnerSDKVersion = BidMachineSdk.sdkVersion
     
@@ -44,16 +68,16 @@ final class BidMachineAdapter: PartnerAdapter {
         log(.setUpStarted)
 
         // Populate only the info we have non-nil saved values for
-        if let coppa = BidMachineAdapterConfiguration.coppa {
+        if let coppa = coppa {
             BidMachineSdk.shared.regulationInfo.populate { $0.withCOPPA(coppa) }
         }
-        if let gdprZone = BidMachineAdapterConfiguration.gdprZone {
+        if let gdprZone = gdprZone {
             BidMachineSdk.shared.regulationInfo.populate { $0.withGDPRZone(gdprZone) }
         }
-        if let gdprConsent = BidMachineAdapterConfiguration.gdprConsent {
+        if let gdprConsent = gdprConsent {
             BidMachineSdk.shared.regulationInfo.populate { $0.withGDPRConsent(gdprConsent) }
         }
-        if let usPrivacyString = BidMachineAdapterConfiguration.usPrivacyString {
+        if let usPrivacyString = usPrivacyString {
             BidMachineSdk.shared.regulationInfo.populate { $0.withUSPrivacyString(usPrivacyString) }
         }
         // These settings all have default values
@@ -102,7 +126,7 @@ final class BidMachineAdapter: PartnerAdapter {
     /// - parameter status: One of the `GDPRConsentStatus` values depending on the user's preference.
     func setGDPR(applies: Bool?, status: GDPRConsentStatus) {
         if let applies = applies {
-            BidMachineAdapterConfiguration.gdprZone = applies
+            gdprZone = applies
             log(.privacyUpdated(setting: "gdprZone", value: applies))
             // It is unknown whether populating this value after initializing the BidMachine SDK does anything
             BidMachineSdk.shared.regulationInfo.populate { $0.withGDPRZone(applies) }
@@ -110,12 +134,12 @@ final class BidMachineAdapter: PartnerAdapter {
 
         // In the case where status == .unknown, we do nothing
         if status == .denied {
-            BidMachineAdapterConfiguration.gdprConsent = false
+            gdprConsent = false
             log(.privacyUpdated(setting: "gdprConsent", value: false))
             // It is unknown whether populating this value after initializing the BidMachine SDK does anything
             BidMachineSdk.shared.regulationInfo.populate { $0.withGDPRConsent(false) }
         } else if status == .granted {
-            BidMachineAdapterConfiguration.gdprConsent = true
+            gdprConsent = true
             log(.privacyUpdated(setting: "gdprConsent", value: true))
             // It is unknown whether populating this value after initializing the BidMachine SDK does anything
             BidMachineSdk.shared.regulationInfo.populate { $0.withGDPRConsent(true) }
@@ -126,7 +150,7 @@ final class BidMachineAdapter: PartnerAdapter {
     /// - parameter hasGivenConsent: A boolean indicating if the user has given consent.
     /// - parameter privacyString: An IAB-compliant string indicating the CCPA status.
     func setCCPA(hasGivenConsent: Bool, privacyString: String) {
-        BidMachineAdapterConfiguration.usPrivacyString = privacyString
+        usPrivacyString = privacyString
         log(.privacyUpdated(setting: "usPrivacyString", value: privacyString))
         // It is unknown whether populating this value after initializing the BidMachine SDK does anything
         BidMachineSdk.shared.regulationInfo.populate { $0.withUSPrivacyString(privacyString) }
@@ -135,7 +159,7 @@ final class BidMachineAdapter: PartnerAdapter {
     /// Indicates if the user is subject to COPPA or not.
     /// - parameter isChildDirected: `true` if the user is subject to COPPA, `false` otherwise.
     func setCOPPA(isChildDirected: Bool) {
-        BidMachineAdapterConfiguration.coppa = isChildDirected
+        coppa = isChildDirected
         log(.privacyUpdated(setting: "COPPA", value: isChildDirected))
         // It is unknown whether populating this value after initializing the BidMachine SDK does anything
         BidMachineSdk.shared.regulationInfo.populate { $0.withCOPPA(isChildDirected) }
