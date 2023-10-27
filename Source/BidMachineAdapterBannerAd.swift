@@ -33,7 +33,7 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerAd {
             config = try BidMachineSdk.shared.requestConfiguration(bannerType)
         } catch {
             let chartboostMediationError = self.error(.loadFailureUnknown, error: error)
-            log(.loadFailed(chartboostMediationError))
+            self.log(.loadFailed(chartboostMediationError))
             completion(.failure(chartboostMediationError))
             return
         }
@@ -53,7 +53,7 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerAd {
             }
             guard let ad else {
                 let chartboostMediationError = self.error(.loadFailureUnknown, error: error)
-                log(.loadFailed(chartboostMediationError))
+                self.log(.loadFailed(chartboostMediationError))
                 completion(.failure(chartboostMediationError))
                 return
             }
