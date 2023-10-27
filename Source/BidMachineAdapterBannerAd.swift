@@ -83,8 +83,6 @@ extension BidMachineAdapterBannerAd: BidMachineAdDelegate {
             log(.loadFailed(loadError))
             loadCompletion?(.failure(loadError)) ?? log(.loadResultIgnored)
             loadCompletion = nil
-            let showError = error(.showFailureAdNotReady)
-            log(.showFailed(showError))
             return
         }
         log(.loadSucceeded)
@@ -107,13 +105,11 @@ extension BidMachineAdapterBannerAd: BidMachineAdDelegate {
     }
 
     func didPresentAd(_ ad: BidMachineAdProtocol) {
-        log(.showSucceeded)
-        showCompletion?(.success([:])) ?? log(.showResultIgnored)
+        log(.delegateCallIgnored)
     }
 
     func didFailPresentAd(_ ad: BidMachineAdProtocol, _ error: Error) {
-        log(.showFailed(error))
-        showCompletion?(.failure(error)) ?? log(.showResultIgnored)
+        log(.delegateCallIgnored)
     }
 
     func didDismissAd(_ ad: BidMachineAdProtocol) {
