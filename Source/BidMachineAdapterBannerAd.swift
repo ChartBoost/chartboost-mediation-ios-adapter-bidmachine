@@ -32,9 +32,8 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerAd {
         do {
             config = try BidMachineSdk.shared.requestConfiguration(bannerType)
         } catch {
-            let chartboostMediationError = self.error(.loadFailureUnknown, error: error)
-            self.log(.loadFailed(chartboostMediationError))
-            completion(.failure(chartboostMediationError))
+            self.log(.loadFailed(error))
+            completion(.failure(error))
             return
         }
 
@@ -94,8 +93,6 @@ extension BidMachineAdapterBannerAd: BidMachineAdDelegate {
         }
         loadCompletion?(.success([:])) ?? log(.loadResultIgnored)
         loadCompletion = nil
-
-        log(.showStarted)
     }
 
     func didFailLoadAd(_ ad: BidMachine.BidMachineAdProtocol, _ error: Error) {

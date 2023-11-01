@@ -23,6 +23,4 @@ import Foundation
     /// Init flag for turning on BidMachine SDK event logging.
     /// Default value is 'false'.
     @objc public static var eventLogging: Bool = false
-
-
 }

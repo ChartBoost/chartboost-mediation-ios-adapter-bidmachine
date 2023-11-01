@@ -23,9 +23,8 @@ final class BidMachineAdapterInterstitialAd: BidMachineAdapterAd, PartnerAd {
         do {
             config = try BidMachineSdk.shared.requestConfiguration(.interstitial)
         } catch {
-            let chartboostMediationError = self.error(.loadFailureUnknown, error: error)
-            self.log(.loadFailed(chartboostMediationError))
-            completion(.failure(chartboostMediationError))
+            self.log(.loadFailed(error))
+            completion(.failure(error))
             return
         }
 
