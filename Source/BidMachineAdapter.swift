@@ -145,6 +145,8 @@ final class BidMachineAdapter: PartnerAdapter {
             // Not using the `.adaptiveBanner` case directly to maintain backward compatibility with Chartboost Mediation 4.0
             if request.format.rawValue == "adaptive_banner" {
                 return BidMachineAdapterBannerAd(adapter: self, request: request, delegate: delegate)
+            } else if request.format.rawValue == "rewarded_interstitial" {
+                return BidMachineAdapterRewardedAd(adapter: self, request: request, delegate: delegate)
             } else {
                 throw error(.loadFailureUnsupportedAdFormat)
             }
