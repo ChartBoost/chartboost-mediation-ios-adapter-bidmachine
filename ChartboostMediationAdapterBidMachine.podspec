@@ -1,6 +1,6 @@
 Pod::Spec.new do |spec|
   spec.name        = 'ChartboostMediationAdapterBidMachine'
-  spec.version     = '4.2.3.0.0'
+  spec.version     = '4.2.4.0.0.0'
   spec.license     = { :type => 'MIT', :file => 'LICENSE.md' }
   spec.homepage    = 'https://github.com/ChartBoost/chartboost-mediation-ios-adapter-bidmachine'
   spec.authors     = { 'Chartboost' => 'https://www.chartboost.com/' }
@@ -13,7 +13,7 @@ Pod::Spec.new do |spec|
   spec.source_files = 'Source/**/*.{swift}'
 
   # Minimum supported versions
-  spec.swift_version         = '5.0'
+  spec.swift_version         = '5.1'
   spec.ios.deployment_target = '12.0'
 
   # System frameworks used
@@ -23,7 +23,7 @@ Pod::Spec.new do |spec|
   spec.dependency 'ChartboostMediationSDK', '~> 4.0'
 
   # Partner network SDK and version that this adapter is certified to work with.
-  spec.dependency 'BidMachine', '2.3.0'
+  spec.dependency 'BidMachine', '~> 2.4.0.0'
 
   # Indicates, that if use_frameworks! is specified, the pod should include a static library framework.
   spec.static_framework = true
