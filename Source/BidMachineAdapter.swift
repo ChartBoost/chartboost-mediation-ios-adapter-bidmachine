@@ -82,7 +82,7 @@ final class BidMachineAdapter: PartnerAdapter {
         case .rewarded:
             placementFormat = .rewarded
         default:
-            // Not using the `.adaptiveBanner` or `.rewardedInterstitial cases directly to maintain
+            // Not using the `.adaptiveBanner` or `.rewardedInterstitial` cases directly to maintain
             // backward compatibility with Chartboost Mediation 4.0
             if request.format.rawValue == "adaptive_banner" {
                 placementFormat = .banner
@@ -97,7 +97,7 @@ final class BidMachineAdapter: PartnerAdapter {
         }
 
         BidMachineSdk.shared.token(with: placementFormat) { [self] token in
-            guard let token = token else {
+            guard let token else {
                 let error = error(.prebidFailureInvalidArgument, description: "No bidding token provided by BidMachine SDK")
                 log(.fetchBidderInfoFailed(request, error: error))
                 completion(nil)
