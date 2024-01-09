@@ -75,17 +75,25 @@ final class BidMachineAdapter: PartnerAdapter {
         log(.fetchBidderInfoStarted(request))
         let placementFormat: BidMachineApiCore.PlacementFormat
         switch request.format {
-        case .banner, .adaptiveBanner:
+        case .banner:
             placementFormat = .banner
         case .interstitial:
             placementFormat = .interstitial
-        case .rewarded, .rewardedInterstitial:
+        case .rewarded:
             placementFormat = .rewarded
         default:
-            let error = error(.prebidFailureInvalidArgument, description: "Unsupported ad format")
-            log(.fetchBidderInfoFailed(request, error: error))
-            completion(nil)
-            return
+            // Not using the `.adaptiveBanner` or `.rewardedInterstitial cases directly to maintain
+            // backward compatibility with Chartboost Mediation 4.0
+            if request.format.rawValue == "adaptive_banner" {
+                placementFormat = .banner
+            } else if request.format.rawValue == "rewarded_interstitial" {
+                placementFormat = .interstitial
+            } else {
+                let error = error(.prebidFailureInvalidArgument, description: "Unsupported ad format")
+                log(.fetchBidderInfoFailed(request, error: error))
+                completion(nil)
+                return
+            }
         }
 
         BidMachineSdk.shared.token(with: placementFormat) { [self] token in
@@ -160,7 +168,8 @@ final class BidMachineAdapter: PartnerAdapter {
         case .banner:
             return BidMachineAdapterBannerAd(adapter: self, request: request, delegate: delegate)
         default:
-            // Not using the `.adaptiveBanner` case directly to maintain backward compatibility with Chartboost Mediation 4.0
+            // Not using the `.adaptiveBanner` or `.rewardedInterstitial cases directly to maintain
+            // backward compatibility with Chartboost Mediation 4.0
             if request.format.rawValue == "adaptive_banner" {
                 return BidMachineAdapterBannerAd(adapter: self, request: request, delegate: delegate)
             } else if request.format.rawValue == "rewarded_interstitial" {
