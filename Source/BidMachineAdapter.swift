@@ -7,6 +7,7 @@ import ChartboostMediationSDK
 import Foundation
 import UIKit
 import BidMachine
+import BidMachineApiCore  // Needed for the PlacementFormat type
 
 final class BidMachineAdapter: PartnerAdapter {
     private let SOURCE_ID_KEY = "source_id"
@@ -72,14 +73,31 @@ final class BidMachineAdapter: PartnerAdapter {
     /// - parameter completion: Closure to be performed with the fetched info.
     func fetchBidderInformation(request: PreBidRequest, completion: @escaping ([String : String]?) -> Void) {
         log(.fetchBidderInfoStarted(request))
-        guard let token = BidMachineSdk.shared.token else {
-            let error = error(.prebidFailureInvalidArgument, description: "No bidding token provided by BidMachine SDK")
+        let placementFormat: BidMachineApiCore.PlacementFormat
+        switch request.format {
+        case .banner, .adaptiveBanner:
+            placementFormat = .banner
+        case .interstitial:
+            placementFormat = .interstitial
+        case .rewarded, .rewardedInterstitial:
+            placementFormat = .rewarded
+        default:
+            let error = error(.prebidFailureInvalidArgument, description: "Unsupported ad format")
             log(.fetchBidderInfoFailed(request, error: error))
             completion(nil)
             return
         }
-        log(.fetchBidderInfoSucceeded(request))
-        completion(["token": token])
+
+        BidMachineSdk.shared.token(with: placementFormat) { [self] token in
+            guard let token = token else {
+                let error = error(.prebidFailureInvalidArgument, description: "No bidding token provided by BidMachine SDK")
+                log(.fetchBidderInfoFailed(request, error: error))
+                completion(nil)
+                return
+            }
+            log(.fetchBidderInfoSucceeded(request))
+            completion(["token": token])
+        }
     }
     
     /// Indicates if GDPR applies or not and the user's GDPR consent status.
