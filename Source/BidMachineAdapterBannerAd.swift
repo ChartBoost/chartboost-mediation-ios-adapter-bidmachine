@@ -43,9 +43,7 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerAd {
             config.populate { $0.withPayload(adm) }
         } else {
             config.populate {
-                let setting = self.request.partnerSettings["price"]
-                let priceNSNum = setting as? NSNumber
-                guard let price = priceNSNum?.doubleValue else {
+                guard let price else {
                     let error = error(.loadFailureInvalidAdRequest)
                     self.log(.loadFailed(error))
                     completion(.failure(error))

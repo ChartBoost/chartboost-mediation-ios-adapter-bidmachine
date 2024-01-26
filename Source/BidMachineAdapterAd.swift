@@ -28,7 +28,14 @@ class BidMachineAdapterAd: NSObject {
 
     /// The completion for the ongoing show operation.
     var showCompletion: ((Result<PartnerEventDetails, Error>) -> Void)?
-    
+
+    /// Waterfall item price
+    var price: Double? {
+      let setting = self.request.partnerSettings["price"]
+      let priceNSNum = setting as? NSNumber
+      return priceNSNum?.doubleValue
+    }
+
     init(adapter: PartnerAdapter, request: PartnerAdLoadRequest, delegate: PartnerAdDelegate) {
         self.adapter = adapter
         self.request = request
