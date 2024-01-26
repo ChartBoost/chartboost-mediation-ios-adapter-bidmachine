@@ -30,11 +30,21 @@ final class BidMachineAdapterInterstitialAd: BidMachineAdapterAd, PartnerAd {
 
         loadCompletion = completion
 
-        // There's no harm in setting the placement ID when loading a bidding ad, but calling
-        // .withPayload(request.adm ?? "") causes an error when BidMachine parses the empty string
-        config.populate { $0.withPlacementId(request.partnerPlacement) }
         if let adm = request.adm {
             config.populate { $0.withPayload(adm) }
+        } else {
+            config.populate {
+                let setting = self.request.partnerSettings["price"]
+                let priceNSNum = setting as? NSNumber
+                guard let price = priceNSNum?.doubleValue else {
+                    let error = error(.loadFailureInvalidAdRequest)
+                    self.log(.loadFailed(error))
+                    completion(.failure(error))
+                    return
+                }
+                $0.withPlacementId(request.partnerPlacement)
+                .appendPriceFloor(price, UUID().uuidString)
+            }
         }
 
         BidMachineSdk.shared.interstitial(config) { [weak self] ad, error in
