@@ -42,6 +42,9 @@ final class BidMachineAdapterInterstitialAd: BidMachineAdapterAd, PartnerAd {
                     completion(.failure(error))
                     return
                 }
+                // On Android the UUID is automatically generated, on iOS it must be passed in.
+                // https://docs.bidmachine.io/docs/in-house-mediation-android#price-floor-parameters
+                // https://docs.bidmachine.io/docs/ad-request#parameters
                 $0.withPlacementId(request.partnerPlacement)
                 .appendPriceFloor(price, UUID().uuidString)
             }
