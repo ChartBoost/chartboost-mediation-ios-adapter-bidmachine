@@ -31,9 +31,9 @@ class BidMachineAdapterAd: NSObject {
 
     /// Waterfall item price
     var price: Double? {
-      let setting = self.request.partnerSettings["price"]
-      let priceNSNum = setting as? NSNumber
-      return priceNSNum?.doubleValue
+        let setting = request.partnerSettings["price"]
+        let priceNSNum = setting as? NSNumber
+        return priceNSNum?.doubleValue
     }
 
     init(adapter: PartnerAdapter, request: PartnerAdLoadRequest, delegate: PartnerAdDelegate) {
