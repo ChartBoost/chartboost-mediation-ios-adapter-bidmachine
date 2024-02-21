@@ -39,11 +39,22 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerAd {
 
         self.loadCompletion = completion
 
-        // There's no harm in setting the placement ID when loading a bidding ad, but calling
-        // .withPayload(request.adm ?? "") causes an error when BidMachine parses the empty string
-        config.populate { $0.withPlacementId(request.partnerPlacement) }
         if let adm = request.adm {
             config.populate { $0.withPayload(adm) }
+        } else {
+            config.populate {
+                guard let price else {
+                    let error = error(.loadFailureInvalidAdRequest)
+                    self.log(.loadFailed(error))
+                    completion(.failure(error))
+                    return
+                }
+                // On Android the UUID is automatically generated, on iOS it must be passed in.
+                // https://docs.bidmachine.io/docs/in-house-mediation-android#price-floor-parameters
+                // https://docs.bidmachine.io/docs/ad-request#parameters
+                $0.withPlacementId(request.partnerPlacement)
+                .appendPriceFloor(price, UUID().uuidString)
+            }
         }
 
         BidMachineSdk.shared.banner(config) { [weak self, weak viewController] ad, error in
