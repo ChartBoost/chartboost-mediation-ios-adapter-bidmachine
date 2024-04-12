@@ -9,10 +9,6 @@ import BidMachine
 
 final class BidMachineAdapterInterstitialAd: BidMachineAdapterAd, PartnerAd {
 
-    /// The loaded partner ad banner size.
-    /// Should be `nil` for full-screen ads.
-    var bannerSize: PartnerBannerSize? { nil }
-
     /// The BidMachineSDK ad instance.
     private var ad: BidMachineInterstitial?
     
