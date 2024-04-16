@@ -21,7 +21,7 @@ final class BidMachineAdapter: PartnerAdapter {
     let adapterVersion = "4.2.6.0.0"
     
     /// The partner's unique identifier.
-    let partnerIdentifier = "bidmachine"
+    let partnerID = "bidmachine"
     
     /// The human-friendly partner name.
     let partnerDisplayName = "BidMachine"
@@ -40,7 +40,7 @@ final class BidMachineAdapter: PartnerAdapter {
     /// Does any setup needed before beginning to load ads.
     /// - parameter configuration: Configuration data for the adapter to set up.
     /// - parameter completion: Closure to be performed by the adapter when it's done setting up. It should include an error indicating the cause for failure or `nil` if the operation finished successfully.
-    func setUp(with configuration: PartnerConfiguration, completion: @escaping (Error?) -> Void) {
+    func setUp(with configuration: PartnerConfiguration, completion: @escaping (Result<PartnerDetails, Error>) -> Void) {
         log(.setUpStarted)
 
         BidMachineSdk.shared.populate {
@@ -53,7 +53,7 @@ final class BidMachineAdapter: PartnerAdapter {
         guard let sourceID = configuration.credentials[SOURCE_ID_KEY] as? String else {
             let error = error(.initializationFailureInvalidCredentials, description: "The 'source ID' was invalid")
             log(.setUpFailed(error))
-            completion(error)
+            completion(.failure(error))
             return
         }
         // Initialize the SDK
@@ -61,50 +61,36 @@ final class BidMachineAdapter: PartnerAdapter {
         guard BidMachineSdk.shared.isInitialized == true else {
             let error = error(.initializationFailureUnknown)
             log(.setUpFailed(error))
-            completion(error)
+            completion(.failure(error))
             return
         }
         log(.setUpSucceded)
-        completion(nil)
+        completion(.success([:]))
     }
     
     /// Fetches bidding tokens needed for the partner to participate in an auction.
     /// - parameter request: Information about the ad load request.
     /// - parameter completion: Closure to be performed with the fetched info.
-    func fetchBidderInformation(request: PreBidRequest, completion: @escaping ([String : String]?) -> Void) {
+    func fetchBidderInformation(request: PartnerAdPreBidRequest, completion: @escaping (Result<[String : String], Error>) -> Void) {
         log(.fetchBidderInfoStarted(request))
         let placementFormat: BidMachineApiCore.PlacementFormat
         switch request.format {
-        case .banner:
+        case PartnerAdFormats.banner, PartnerAdFormats.adaptiveBanner:
             placementFormat = .banner
-        case .interstitial:
+        case PartnerAdFormats.interstitial, PartnerAdFormats.rewardedInterstitial:
             placementFormat = .interstitial
-        case .rewarded:
+        case PartnerAdFormats.rewarded:
             placementFormat = .rewarded
         default:
-            // Not using the `.adaptiveBanner` or `.rewardedInterstitial` cases directly to maintain
-            // backward compatibility with Chartboost Mediation 4.0
-            if request.format.rawValue == "adaptive_banner" {
-                placementFormat = .banner
-            } else if request.format.rawValue == "rewarded_interstitial" {
-                placementFormat = .interstitial
-            } else {
-                let error = error(.prebidFailureInvalidArgument, description: "Unsupported ad format")
-                log(.fetchBidderInfoFailed(request, error: error))
-                completion(nil)
-                return
-            }
+            let error = error(.prebidFailureInvalidArgument, description: "Unsupported ad format")
+            log(.fetchBidderInfoFailed(request, error: error))
+            completion(.failure(error))
+            return
         }
 
         BidMachineSdk.shared.token(with: placementFormat) { [self] token in
-            guard let token else {
-                let error = error(.prebidFailureInvalidArgument, description: "No bidding token provided by BidMachine SDK")
-                log(.fetchBidderInfoFailed(request, error: error))
-                completion(nil)
-                return
-            }
             log(.fetchBidderInfoSucceeded(request))
-            completion(["token": token])
+            completion(.success(token.map { ["token": $0] } ?? [:]))
         }
     }
     
@@ -154,29 +140,22 @@ final class BidMachineAdapter: PartnerAdapter {
         // Banner loads are allowed so a banner prefetch can happen during auto-refresh.
         // ChartboostMediationSDK 4.x does not support loading more than 2 banners with the same placement, and the partner may or may not support it.
         guard !storage.ads.contains(where: { $0.request.partnerPlacement == request.partnerPlacement })
-            || request.format == .banner
+            || request.format == PartnerAdFormats.banner
+            || request.format == PartnerAdFormats.adaptiveBanner
         else {
             log("Failed to load ad for already loading placement \(request.partnerPlacement)")
             throw error(.loadFailureLoadInProgress)
         }
         
         switch request.format {
-        case .interstitial:
+        case PartnerAdFormats.interstitial:
             return BidMachineAdapterInterstitialAd(adapter: self, request: request, delegate: delegate)
-        case .rewarded:
+        case PartnerAdFormats.rewarded, PartnerAdFormats.rewardedInterstitial:
             return BidMachineAdapterRewardedAd(adapter: self, request: request, delegate: delegate)
-        case .banner:
+        case PartnerAdFormats.banner, PartnerAdFormats.adaptiveBanner:
             return BidMachineAdapterBannerAd(adapter: self, request: request, delegate: delegate)
         default:
-            // Not using the `.adaptiveBanner` or `.rewardedInterstitial cases directly to maintain
-            // backward compatibility with Chartboost Mediation 4.0
-            if request.format.rawValue == "adaptive_banner" {
-                return BidMachineAdapterBannerAd(adapter: self, request: request, delegate: delegate)
-            } else if request.format.rawValue == "rewarded_interstitial" {
-                return BidMachineAdapterRewardedAd(adapter: self, request: request, delegate: delegate)
-            } else {
-                throw error(.loadFailureUnsupportedAdFormat)
-            }
+            throw error(.loadFailureUnsupportedAdFormat)
         }
     }
 }

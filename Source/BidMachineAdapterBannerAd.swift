@@ -16,11 +16,12 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerAd {
     /// Loads an ad.
     /// - parameter viewController: The view controller on which the ad will be presented on. Needed on load for some banners.
     /// - parameter completion: Closure to be performed once the ad has been loaded.
-    func load(with viewController: UIViewController?, completion: @escaping (Result<PartnerEventDetails, Error>) -> Void) {
+    func load(with viewController: UIViewController?, completion: @escaping (Result<PartnerDetails, Error>) -> Void) {
         log(.loadStarted)
 
         guard let size = request.size,
-              let bannerType = BidMachineApiCore.PlacementFormat.from(size: fixedBannerSize(for: size)) else {
+              let mappedSize = fixedBannerSize(for: size),
+              let bannerType = BidMachineApiCore.PlacementFormat.from(size: mappedSize) else {
             let error = error(.loadFailureInvalidBannerSize)
             log(.loadFailed(error))
             completion(.failure(error))
@@ -37,6 +38,7 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerAd {
             return
         }
 
+        self.bannerSize = PartnerBannerSize(size: mappedSize, type: .fixed)
         self.loadCompletion = completion
 
         if let adm = request.adm {
@@ -78,7 +80,7 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerAd {
     /// It will never get called for banner ads. You may leave the implementation blank for that ad format.
     /// - parameter viewController: The view controller on which the ad will be presented on.
     /// - parameter completion: Closure to be performed once the ad has been shown.
-    func show(with viewController: UIViewController, completion: @escaping (Result<PartnerEventDetails, Error>) -> Void) {
+    func show(with viewController: UIViewController, completion: @escaping (Result<PartnerDetails, Error>) -> Void) {
         // no-op
     }
 }
@@ -96,12 +98,6 @@ extension BidMachineAdapterBannerAd: BidMachineAdDelegate {
             return
         }
         log(.loadSucceeded)
-        var partnerDetails: [String: String] = [:]
-        if let loadedSize = fixedBannerSize(for: request.size ?? IABStandardAdSize) {
-            partnerDetails["bannerWidth"] = "\(loadedSize.width)"
-            partnerDetails["bannerHeight"] = "\(loadedSize.height)"
-            partnerDetails["bannerType"] = "0" // Fixed banner
-        }
         loadCompletion?(.success([:])) ?? log(.loadResultIgnored)
         loadCompletion = nil
     }
@@ -153,7 +149,7 @@ extension BidMachineAdapterBannerAd: BidMachineAdDelegate {
 }
 
 extension BidMachineApiCore.PlacementFormat {
-    static func from(size: CGSize?) -> BidMachineApiCore.PlacementFormat? {
+    static func from(size: CGSize) -> BidMachineApiCore.PlacementFormat? {
         // Translate IAB size to a BidMachine placement format
         switch size {
         case IABStandardAdSize:
