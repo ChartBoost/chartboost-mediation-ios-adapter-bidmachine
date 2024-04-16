@@ -19,7 +19,7 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerAd {
     func load(with viewController: UIViewController?, completion: @escaping (Result<PartnerDetails, Error>) -> Void) {
         log(.loadStarted)
 
-        guard let size = request.size,
+        guard let size = request.bannerSize,
               let mappedSize = fixedBannerSize(for: size),
               let bannerType = BidMachineApiCore.PlacementFormat.from(size: mappedSize) else {
             let error = error(.loadFailureInvalidBannerSize)
@@ -166,13 +166,13 @@ extension BidMachineApiCore.PlacementFormat {
 }
 
 extension BidMachineAdapterBannerAd {
-    private func fixedBannerSize(for requestedSize: CGSize) -> CGSize? {
+    private func fixedBannerSize(for requestedSize: BannerSize) -> CGSize? {
         let sizes = [IABLeaderboardAdSize, IABMediumAdSize, IABStandardAdSize]
         // Find the largest size that can fit in the requested size.
         for size in sizes {
             // If height is 0, the pub has requested an ad of any height, so only the width matters.
-            if requestedSize.width >= size.width &&
-                (size.height == 0 || requestedSize.height >= size.height) {
+            if requestedSize.size.width >= size.width &&
+                (size.height == 0 || requestedSize.size.height >= size.height) {
                 return size
             }
         }
