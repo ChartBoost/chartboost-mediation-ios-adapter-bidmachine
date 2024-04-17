@@ -75,7 +75,7 @@ final class BidMachineAdapter: PartnerAdapter {
         log(.fetchBidderInfoStarted(request))
         let placementFormat: BidMachineApiCore.PlacementFormat
         switch request.format {
-        case PartnerAdFormats.banner, PartnerAdFormats.adaptiveBanner:
+        case PartnerAdFormats.banner:
             placementFormat = .banner
         case PartnerAdFormats.interstitial, PartnerAdFormats.rewardedInterstitial:
             placementFormat = .interstitial
@@ -141,7 +141,6 @@ final class BidMachineAdapter: PartnerAdapter {
         // ChartboostMediationSDK 4.x does not support loading more than 2 banners with the same placement, and the partner may or may not support it.
         guard !storage.ads.contains(where: { $0.request.partnerPlacement == request.partnerPlacement })
             || request.format == PartnerAdFormats.banner
-            || request.format == PartnerAdFormats.adaptiveBanner
         else {
             log("Failed to load ad for already loading placement \(request.partnerPlacement)")
             throw error(.loadFailureLoadInProgress)
@@ -152,7 +151,7 @@ final class BidMachineAdapter: PartnerAdapter {
             return BidMachineAdapterInterstitialAd(adapter: self, request: request, delegate: delegate)
         case PartnerAdFormats.rewarded, PartnerAdFormats.rewardedInterstitial:
             return BidMachineAdapterRewardedAd(adapter: self, request: request, delegate: delegate)
-        case PartnerAdFormats.banner, PartnerAdFormats.adaptiveBanner:
+        case PartnerAdFormats.banner:
             return BidMachineAdapterBannerAd(adapter: self, request: request, delegate: delegate)
         default:
             throw error(.loadFailureUnsupportedAdFormat)
