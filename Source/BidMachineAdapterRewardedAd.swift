@@ -7,7 +7,7 @@ import ChartboostMediationSDK
 import Foundation
 import BidMachine
 
-final class BidMachineAdapterRewardedAd: BidMachineAdapterAd, PartnerAd {
+final class BidMachineAdapterRewardedAd: BidMachineAdapterAd, PartnerFullscreenAd {
 
     /// The BidMachineSDK ad instance.
     private var ad: BidMachineRewarded?

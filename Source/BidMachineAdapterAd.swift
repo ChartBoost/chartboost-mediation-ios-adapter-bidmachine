@@ -7,15 +7,6 @@ import ChartboostMediationSDK
 import Foundation
 
 class BidMachineAdapterAd: NSObject {
-
-    /// The partner ad view to display inline. E.g. a banner view.
-    /// Should be nil for full-screen ads.
-    var inlineView: UIView?
-    
-    /// The loaded partner ad banner size.
-    /// Should be `nil` for full-screen ads.
-    var bannerSize: PartnerBannerSize?
-
     /// The partner adapter that created this ad.
     let adapter: PartnerAdapter
     
