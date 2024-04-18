@@ -75,7 +75,7 @@ final class BidMachineAdapter: PartnerAdapter {
         log(.fetchBidderInfoStarted(request))
         let placementFormat: BidMachineApiCore.PlacementFormat
         switch request.format {
-        case PartnerAdFormats.banner, PartnerAdFormats.adaptiveBanner:
+        case PartnerAdFormats.banner:
             placementFormat = .banner
         case PartnerAdFormats.interstitial, PartnerAdFormats.rewardedInterstitial:
             placementFormat = .interstitial
