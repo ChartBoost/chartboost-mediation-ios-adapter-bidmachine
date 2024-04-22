@@ -7,7 +7,7 @@ import ChartboostMediationSDK
 import Foundation
 import BidMachine
 
-final class BidMachineAdapterRewardedAd: BidMachineAdapterAd, PartnerAd {
+final class BidMachineAdapterRewardedAd: BidMachineAdapterAd, PartnerFullscreenAd {
 
     /// The BidMachineSDK ad instance.
     private var ad: BidMachineRewarded?
@@ -65,7 +65,7 @@ final class BidMachineAdapterRewardedAd: BidMachineAdapterAd, PartnerAd {
     }
 
     /// Shows a loaded ad.
-    /// It will never get called for banner ads. You may leave the implementation blank for that ad format.
+    /// Chartboost Mediation SDK will always call this method from the main thread.
     /// - parameter viewController: The view controller on which the ad will be presented on.
     /// - parameter completion: Closure to be performed once the ad has been shown.
     func show(with viewController: UIViewController, completion: @escaping (Result<PartnerDetails, Error>) -> Void) {

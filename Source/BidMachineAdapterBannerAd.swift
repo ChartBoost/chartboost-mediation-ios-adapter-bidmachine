@@ -8,7 +8,12 @@ import Foundation
 import BidMachine
 import BidMachineApiCore  // Needed for the PlacementFormat type
 
-final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerAd {
+final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerBannerAd {
+    /// The partner banner ad view to display.
+    var view: UIView?
+
+    /// The loaded partner ad banner size.
+    var size: PartnerBannerSize?
 
     /// The BidMachineSDK ad instance.
     private var ad: BidMachineBanner?
@@ -38,7 +43,7 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerAd {
             return
         }
 
-        self.bannerSize = PartnerBannerSize(size: mappedSize, type: .fixed)
+        self.size = PartnerBannerSize(size: mappedSize, type: .fixed)
         self.loadCompletion = completion
 
         if let adm = request.adm {
@@ -69,19 +74,11 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerAd {
                 completion(.failure(chartboostMediationError))
                 return
             }
-            self.inlineView = ad
+            self.view = ad
             ad.controller = viewController
             ad.delegate = self
             ad.loadAd()
         }
-    }
-    
-    /// Shows a loaded ad.
-    /// It will never get called for banner ads. You may leave the implementation blank for that ad format.
-    /// - parameter viewController: The view controller on which the ad will be presented on.
-    /// - parameter completion: Closure to be performed once the ad has been shown.
-    func show(with viewController: UIViewController, completion: @escaping (Result<PartnerDetails, Error>) -> Void) {
-        // no-op
     }
 }
 
