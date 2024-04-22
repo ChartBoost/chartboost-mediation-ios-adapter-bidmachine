@@ -140,7 +140,7 @@ final class BidMachineAdapter: PartnerAdapter {
     func makeBannerAd(request: PartnerAdLoadRequest, delegate: PartnerAdDelegate) throws -> PartnerBannerAd {
         // Multiple banner loads are allowed so a banner prefetch can happen during auto-refresh.
         // ChartboostMediationSDK 5.x does not support loading more than 2 banners with the same placement, and the partner may or may not support it.
-        return BidMachineAdapterBannerAd(adapter: self, request: request, delegate: delegate)
+        BidMachineAdapterBannerAd(adapter: self, request: request, delegate: delegate)
     }
 
     /// Creates a new ad object in charge of communicating with a single partner SDK ad instance.
