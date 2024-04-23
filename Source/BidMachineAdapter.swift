@@ -93,41 +93,43 @@ final class BidMachineAdapter: PartnerAdapter {
             completion(.success(token.map { ["token": $0] } ?? [:]))
         }
     }
-    
-    /// Indicates if GDPR applies or not and the user's GDPR consent status.
-    /// - parameter applies: `true` if GDPR applies, `false` if not, `nil` if the publisher has not provided this information.
-    /// - parameter status: One of the `GDPRConsentStatus` values depending on the user's preference.
-    func setGDPR(applies: Bool?, status: GDPRConsentStatus) {
-        if let applies = applies {
-            log(.privacyUpdated(setting: "gdprZone", value: applies))
-            BidMachineSdk.shared.regulationInfo.populate { $0.withGDPRZone(applies) }
+
+    /// Indicates that the user consent has changed.
+    /// - parameter consents: The new consents value, including both modified and unmodified consents.
+    /// - parameter modifiedKeys: A set containing all the keys that changed.
+    func setConsents(_ consents: [ConsentKey: ConsentValue], modifiedKeys: Set<ConsentKey>) {
+        if modifiedKeys.contains(partnerID) || modifiedKeys.contains(ConsentKeys.gdprConsentGiven) {
+            let consent = consents[partnerID] ?? consents[ConsentKeys.gdprConsentGiven]
+            switch consent {
+            case ConsentValues.granted:
+                BidMachineSdk.shared.regulationInfo.populate { $0.withGDPRConsent(true) }
+                log(.privacyUpdated(setting: "gdprConsent", value: true))
+            case ConsentValues.denied:
+                BidMachineSdk.shared.regulationInfo.populate { $0.withGDPRConsent(false) }
+                log(.privacyUpdated(setting: "gdprConsent", value: false))
+            default:
+                break   // do nothing
+            }
         }
 
-        // In the case where status == .unknown, we do nothing
-        if status == .denied {
-            log(.privacyUpdated(setting: "gdprConsent", value: false))
-            BidMachineSdk.shared.regulationInfo.populate { $0.withGDPRConsent(false) }
-        } else if status == .granted {
-            log(.privacyUpdated(setting: "gdprConsent", value: true))
-            BidMachineSdk.shared.regulationInfo.populate { $0.withGDPRConsent(true) }
+        if modifiedKeys.contains(ConsentKeys.tcf), let tcfString = consents[ConsentKeys.tcf] {
+            BidMachineSdk.shared.regulationInfo.populate { $0.withGDPRConsentString(tcfString) }
+            log(.privacyUpdated(setting: "gdprConsentString", value: tcfString))
+        }
+
+        if modifiedKeys.contains(ConsentKeys.usp), let privacyString = consents[ConsentKeys.usp] {
+            log(.privacyUpdated(setting: "usPrivacyString", value: privacyString))
+            BidMachineSdk.shared.regulationInfo.populate { $0.withUSPrivacyString(privacyString) }
         }
     }
-    
-    /// Indicates the CCPA status both as a boolean and as an IAB US privacy string.
-    /// - parameter hasGivenConsent: A boolean indicating if the user has given consent.
-    /// - parameter privacyString: An IAB-compliant string indicating the CCPA status.
-    func setCCPA(hasGivenConsent: Bool, privacyString: String) {
-        log(.privacyUpdated(setting: "usPrivacyString", value: privacyString))
-        BidMachineSdk.shared.regulationInfo.populate { $0.withUSPrivacyString(privacyString) }
+
+    /// Indicates that the user is underage signal has changed.
+    /// - parameter isUserUnderage: `true` if the user is underage as determined by the publisher, `false` otherwise.
+    func setIsUserUnderage(_ isUserUnderage: Bool) {
+        log(.privacyUpdated(setting: "COPPA", value: isUserUnderage))
+        BidMachineSdk.shared.regulationInfo.populate { $0.withCOPPA(isUserUnderage) }
     }
-    
-    /// Indicates if the user is subject to COPPA or not.
-    /// - parameter isChildDirected: `true` if the user is subject to COPPA, `false` otherwise.
-    func setCOPPA(isChildDirected: Bool) {
-        log(.privacyUpdated(setting: "COPPA", value: isChildDirected))
-        BidMachineSdk.shared.regulationInfo.populate { $0.withCOPPA(isChildDirected) }
-    }
-    
+
     /// Creates a new banner ad object in charge of communicating with a single partner SDK ad instance.
     /// Chartboost Mediation SDK calls this method to create a new ad for each new load request. Ad instances are never reused.
     /// Chartboost Mediation SDK takes care of storing and disposing of ad instances so you don't need to.
