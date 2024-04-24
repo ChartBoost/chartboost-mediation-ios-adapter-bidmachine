@@ -118,7 +118,11 @@ final class BidMachineAdapter: PartnerAdapter {
         }
 
         if modifiedKeys.contains(ConsentKeys.tcf), let tcfString = consents[ConsentKeys.tcf] {
-            BidMachineSdk.shared.regulationInfo.populate { $0.withGDPRConsentString(tcfString) }
+            let gdprApplies = UserDefaults.standard.string(forKey: .tcfGDPRAppliesKey) == .tcgGDPRAppliesTrue
+            BidMachineSdk.shared.regulationInfo.populate {
+                $0.withGDPRZone(gdprApplies)
+                $0.withGDPRConsentString(tcfString)
+            }
             log(.privacyUpdated(setting: "gdprConsentString", value: tcfString))
         }
 
@@ -174,4 +178,12 @@ final class BidMachineAdapter: PartnerAdapter {
             throw error(.loadFailureUnsupportedAdFormat)
         }
     }
+}
+
+private extension String {
+    /// This key for the TCFv2 string when stored in UserDefaults is defined by the IAB in Consent Management Platform API Final v.2.2 May 2023
+   /// https://github.com/InteractiveAdvertisingBureau/GDPR-Transparency-and-Consent-Framework/blob/master/TCFv2/IAB%20Tech%20Lab%20-%20CMP%20API%20v2.md#what-is-the-cmp-in-app-internal-structure-for-the-defined-api
+    static let tcfGDPRAppliesKey = "IABTCF_gdprApplies"
+    /// The value for `tcfGDPRAppliesKey` that indicates that GDPR does apply.
+    static let tcgGDPRAppliesTrue = "1"
 }
