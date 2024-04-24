@@ -56,6 +56,11 @@ final class BidMachineAdapter: PartnerAdapter {
             completion(.failure(error))
             return
         }
+
+        // Apply initial consents
+        setConsents(configuration.consents, modifiedKeys: Set(configuration.consents.keys))
+        setIsUserUnderage(configuration.isUserUnderage)
+
         // Initialize the SDK
         BidMachineSdk.shared.initializeSdk(sourceID)
         guard BidMachineSdk.shared.isInitialized == true else {
