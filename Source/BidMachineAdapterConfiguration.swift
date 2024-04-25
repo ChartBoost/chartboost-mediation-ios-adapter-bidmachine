@@ -10,20 +10,20 @@ import Foundation
 @objc public class BidMachineAdapterConfiguration: NSObject {
 
     /// The version of the partner SDK.
-    @objc static var partnerSDKVersion: String {
+    @objc public static var partnerSDKVersion: String {
         BidMachineSdk.sdkVersion
     }
 
     /// The version of the adapter.
     /// It should have either 5 or 6 digits separated by periods, where the first digit is Chartboost Mediation SDK's major version, the last digit is the adapter's build version, and intermediate digits are the partner SDK's version.
     /// Format: `<Chartboost Mediation major version>.<Partner major version>.<Partner minor version>.<Partner patch version>.<Partner build version>.<Adapter build version>` where `.<Partner build version>` is optional.
-    @objc static let adapterVersion = "4.2.6.0.0"
+    @objc public static let adapterVersion = "4.2.6.0.0"
 
     /// The partner's unique identifier.
-    @objc static let partnerID = "bidmachine"
+    @objc public static let partnerID = "bidmachine"
 
     /// The human-friendly partner name.
-    @objc static let partnerDisplayName = "BidMachine"
+    @objc public static let partnerDisplayName = "BidMachine"
 
     /// Init flag for starting up BidMachine SDK in test mode.
     /// Default value is 'false'.
