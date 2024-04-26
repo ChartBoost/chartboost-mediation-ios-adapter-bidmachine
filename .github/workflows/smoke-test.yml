@@ -12,4 +12,4 @@ jobs:
   validate-podspec:
     runs-on: macos-13
     steps:
-      - uses: chartboost/chartboost-ios-adapter-actions/adapter-smoke-test@v1
+      - uses: chartboost/chartboost-ios-adapter-actions/adapter-smoke-test@v2
