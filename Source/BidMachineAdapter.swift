@@ -173,7 +173,7 @@ final class BidMachineAdapter: PartnerAdapter {
     func makeFullscreenAd(request: PartnerAdLoadRequest, delegate: PartnerAdDelegate) throws -> PartnerFullscreenAd {
         // Prevent multiple loads for the same partner placement, since the partner SDK cannot handle them.
         guard !storage.ads.contains(where: { $0.request.partnerPlacement == request.partnerPlacement }) else {
-            log("Failed to load ad for already loading placement \(request.partnerPlacement)")
+            log(.skippedLoadForAlreadyLoadingPlacement(request))
             throw error(.loadFailureLoadInProgress)
         }
         
