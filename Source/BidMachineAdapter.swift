@@ -95,7 +95,7 @@ final class BidMachineAdapter: PartnerAdapter {
         case PartnerAdFormats.rewarded:
             placementFormat = .rewarded
         default:
-            let error = error(.prebidFailureInvalidArgument, description: "Unsupported ad format")
+            let error = error(.prebidFailureUnsupportedAdFormat)
             log(.fetchBidderInfoFailed(request, error: error))
             completion(.failure(error))
             return
