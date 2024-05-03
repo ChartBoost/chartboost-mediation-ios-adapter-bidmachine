@@ -4,10 +4,11 @@
 // license that can be found in the LICENSE file.
 
 import BidMachine
+import ChartboostMediationSDK
 import Foundation
 
 /// A list of externally configurable properties pertaining to the partner SDK that can be retrieved and set by publishers.
-@objc public class BidMachineAdapterConfiguration: NSObject {
+@objc public class BidMachineAdapterConfiguration: NSObject, PartnerAdapterConfiguration {
 
     /// The version of the partner SDK.
     @objc public static var partnerSDKVersion: String {
