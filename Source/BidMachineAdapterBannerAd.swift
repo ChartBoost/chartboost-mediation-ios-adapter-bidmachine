@@ -24,9 +24,9 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerBannerAd {
     func load(with viewController: UIViewController?, completion: @escaping (Result<PartnerDetails, Error>) -> Void) {
         log(.loadStarted)
 
-        guard let size = request.bannerSize,
-              let mappedSize = fixedBannerSize(for: size),
-              let bannerType = BidMachineApiCore.PlacementFormat.from(size: mappedSize) else {
+        guard let requestedSize = request.bannerSize,
+              let loadedSize = BannerSize.largestStandardFixedSizeThatFits(in: requestedSize)?.size,
+              let bannerType = BidMachineApiCore.PlacementFormat.from(size: loadedSize) else {
             let error = error(.loadFailureInvalidBannerSize)
             log(.loadFailed(error))
             completion(.failure(error))
@@ -43,7 +43,7 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerBannerAd {
             return
         }
 
-        self.size = PartnerBannerSize(size: mappedSize, type: .fixed)
+        self.size = PartnerBannerSize(size: loadedSize, type: .fixed)
         self.loadCompletion = completion
 
         if let adm = request.adm {
@@ -149,31 +149,15 @@ extension BidMachineApiCore.PlacementFormat {
     static func from(size: CGSize) -> BidMachineApiCore.PlacementFormat? {
         // Translate IAB size to a BidMachine placement format
         switch size {
-        case IABStandardAdSize:
+        case BannerSize.standard.size:
             return .banner320x50
-        case IABMediumAdSize:
+        case BannerSize.medium.size:
             return .banner300x250
-        case IABLeaderboardAdSize:
+        case BannerSize.leaderboard.size:
             return .banner728x90
         default:
             // Not a standard IAB size
             return nil
         }
-    }
-}
-
-extension BidMachineAdapterBannerAd {
-    private func fixedBannerSize(for requestedSize: BannerSize) -> CGSize? {
-        let sizes = [IABLeaderboardAdSize, IABMediumAdSize, IABStandardAdSize]
-        // Find the largest size that can fit in the requested size.
-        for size in sizes {
-            // If height is 0, the pub has requested an ad of any height, so only the width matters.
-            if requestedSize.size.width >= size.width &&
-                (size.height == 0 || requestedSize.size.height >= size.height) {
-                return size
-            }
-        }
-        // The requested size cannot fit any fixed size banners.
-        return nil
     }
 }
