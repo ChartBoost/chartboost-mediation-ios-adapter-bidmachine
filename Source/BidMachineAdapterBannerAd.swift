@@ -6,7 +6,6 @@
 import ChartboostMediationSDK
 import Foundation
 import BidMachine
-import BidMachineApiCore  // Needed for the PlacementFormat type
 
 final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerAd {
 
@@ -20,7 +19,7 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerAd {
         log(.loadStarted)
 
         guard let size = request.size,
-              let bannerType = BidMachineApiCore.PlacementFormat.from(size: fixedBannerSize(for: size)) else {
+              let bannerType = PlacementFormat.from(size: fixedBannerSize(for: size)) else {
             let error = error(.loadFailureInvalidBannerSize)
             log(.loadFailed(error))
             completion(.failure(error))
@@ -152,8 +151,8 @@ extension BidMachineAdapterBannerAd: BidMachineAdDelegate {
     }
 }
 
-extension BidMachineApiCore.PlacementFormat {
-    static func from(size: CGSize?) -> BidMachineApiCore.PlacementFormat? {
+extension PlacementFormat {
+    static func from(size: CGSize?) -> PlacementFormat? {
         // Translate IAB size to a BidMachine placement format
         switch size {
         case IABStandardAdSize:

@@ -7,7 +7,6 @@ import ChartboostMediationSDK
 import Foundation
 import UIKit
 import BidMachine
-import BidMachineApiCore  // Needed for the PlacementFormat type
 
 final class BidMachineAdapter: PartnerAdapter {
     private let SOURCE_ID_KEY = "source_id"
@@ -18,7 +17,7 @@ final class BidMachineAdapter: PartnerAdapter {
     /// The version of the adapter.
     /// It should have either 5 or 6 digits separated by periods, where the first digit is Chartboost Mediation SDK's major version, the last digit is the adapter's build version, and intermediate digits are the partner SDK's version.
     /// Format: `<Chartboost Mediation major version>.<Partner major version>.<Partner minor version>.<Partner patch version>.<Partner build version>.<Adapter build version>` where `.<Partner build version>` is optional.
-    let adapterVersion = "4.2.6.0.0"
+    let adapterVersion = "4.2.7.0.0"
     
     /// The partner's unique identifier.
     let partnerIdentifier = "bidmachine"
@@ -73,7 +72,7 @@ final class BidMachineAdapter: PartnerAdapter {
     /// - parameter completion: Closure to be performed with the fetched info.
     func fetchBidderInformation(request: PreBidRequest, completion: @escaping ([String : String]?) -> Void) {
         log(.fetchBidderInfoStarted(request))
-        let placementFormat: BidMachineApiCore.PlacementFormat
+        let placementFormat: PlacementFormat
         switch request.format {
         case .banner:
             placementFormat = .banner
