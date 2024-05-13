@@ -23,9 +23,11 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerBannerAd {
     func load(with viewController: UIViewController?, completion: @escaping (Result<PartnerDetails, Error>) -> Void) {
         log(.loadStarted)
 
-        guard let requestedSize = request.bannerSize,
-              let loadedSize = BannerSize.largestStandardFixedSizeThatFits(in: requestedSize)?.size,
-              let bannerType = PlacementFormat.from(size: loadedSize) else {
+        guard
+            let requestedSize = request.bannerSize,
+            let loadedSize = BannerSize.largestStandardFixedSizeThatFits(in: requestedSize),
+            let bannerType = loadedSize.bidMachineAdSize
+        else {
             let error = error(.loadFailureInvalidBannerSize)
             log(.loadFailed(error))
             completion(.failure(error))
@@ -42,7 +44,7 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerBannerAd {
             return
         }
 
-        self.size = PartnerBannerSize(size: loadedSize, type: .fixed)
+        self.size = PartnerBannerSize(size: loadedSize.size, type: .fixed)
         self.loadCompletion = completion
 
         if let adm = request.adm {
@@ -144,19 +146,18 @@ extension BidMachineAdapterBannerAd: BidMachineAdDelegate {
     }
 }
 
-extension PlacementFormat {
-    static func from(size: CGSize) -> PlacementFormat? {
-        // Translate IAB size to a BidMachine placement format
-        switch size {
-        case BannerSize.standard.size:
-            return .banner320x50
-        case BannerSize.medium.size:
-            return .banner300x250
-        case BannerSize.leaderboard.size:
-            return .banner728x90
+extension BannerSize {
+    fileprivate var bidMachineAdSize: PlacementFormat? {
+        switch self {
+        case .standard:
+            .banner320x50
+        case .medium:
+            .banner300x250
+        case .leaderboard:
+            .banner728x90
         default:
             // Not a standard IAB size
-            return nil
+            nil
         }
     }
 }
