@@ -8,7 +8,7 @@ The Chartboost Mediation BidMachine adapter mediates BidMachine via the Chartboo
 | ------ | ------ |
 | Chartboost Mediation SDK | 4.0.0+ |
 | Cocoapods | 1.11.3+ |
-| iOS | 13 |
+| iOS | 12.0 |
 | Xcode | 14.1+ |
 
 ## Integration
