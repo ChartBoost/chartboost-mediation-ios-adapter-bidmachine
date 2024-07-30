@@ -5,6 +5,7 @@ Adapters are compatible with any Chartboost Mediation SDK version within that ma
 
 ### 4.3.0.0.1
 - The minimum OS version required is now iOS 12.0.
+- The BidMachine SDK will only serve ads on iOS versions >= 13.
 - This version of the adapter has been certified with BidMachine 3.0.0.
 
 ### 4.3.0.0.0
