@@ -3,27 +3,17 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file.
 
+import BidMachine
 import ChartboostMediationSDK
 import Foundation
 import UIKit
-import BidMachine
 
 final class BidMachineAdapter: PartnerAdapter {
     private let SOURCE_ID_KEY = "source_id"
 
-    /// The version of the partner SDK.
-    let partnerSDKVersion = BidMachineSdk.sdkVersion
-    
-    /// The version of the adapter.
-    /// It should have either 5 or 6 digits separated by periods, where the first digit is Chartboost Mediation SDK's major version, the last digit is the adapter's build version, and intermediate digits are the partner SDK's version.
-    /// Format: `<Chartboost Mediation major version>.<Partner major version>.<Partner minor version>.<Partner patch version>.<Partner build version>.<Adapter build version>` where `.<Partner build version>` is optional.
-    let adapterVersion = "4.3.0.0.1"
-    
-    /// The partner's unique identifier.
-    let partnerIdentifier = "bidmachine"
-    
-    /// The human-friendly partner name.
-    let partnerDisplayName = "BidMachine"
+    /// The adapter configuration type that contains adapter and partner info.
+    /// It may also be used to expose custom partner SDK options to the publisher.
+    var configuration: PartnerAdapterConfiguration.Type { BidMachineAdapterConfiguration.self }
 
     /// Ad storage managed by Chartboost Mediation SDK.
     let storage: PartnerAdapterStorage
@@ -35,11 +25,12 @@ final class BidMachineAdapter: PartnerAdapter {
     init(storage: PartnerAdapterStorage) {
         self.storage = storage
     }
-    
+
     /// Does any setup needed before beginning to load ads.
     /// - parameter configuration: Configuration data for the adapter to set up.
-    /// - parameter completion: Closure to be performed by the adapter when it's done setting up. It should include an error indicating the cause for failure or `nil` if the operation finished successfully.
-    func setUp(with configuration: PartnerConfiguration, completion: @escaping (Error?) -> Void) {
+    /// - parameter completion: Closure to be performed by the adapter when it's done setting up. It should include an error indicating
+    /// the cause for failure or `nil` if the operation finished successfully.
+    func setUp(with configuration: PartnerConfiguration, completion: @escaping (Result<PartnerDetails, Error>) -> Void) {
         log(.setUpStarted)
 
         BidMachineSdk.shared.populate {
@@ -52,132 +43,142 @@ final class BidMachineAdapter: PartnerAdapter {
         guard let sourceID = configuration.credentials[SOURCE_ID_KEY] as? String else {
             let error = error(.initializationFailureInvalidCredentials, description: "The 'source ID' was invalid")
             log(.setUpFailed(error))
-            completion(error)
+            completion(.failure(error))
             return
         }
+
+        // Apply initial consents
+        setConsents(configuration.consents, modifiedKeys: Set(configuration.consents.keys))
+        setIsUserUnderage(configuration.isUserUnderage)
+
         // Initialize the SDK
         BidMachineSdk.shared.initializeSdk(sourceID)
         guard BidMachineSdk.shared.isInitialized == true else {
             let error = error(.initializationFailureUnknown)
             log(.setUpFailed(error))
-            completion(error)
+            completion(.failure(error))
             return
         }
         log(.setUpSucceded)
-        completion(nil)
+        completion(.success([:]))
     }
-    
+
     /// Fetches bidding tokens needed for the partner to participate in an auction.
     /// - parameter request: Information about the ad load request.
     /// - parameter completion: Closure to be performed with the fetched info.
-    func fetchBidderInformation(request: PreBidRequest, completion: @escaping ([String : String]?) -> Void) {
+    func fetchBidderInformation(request: PartnerAdPreBidRequest, completion: @escaping (Result<[String: String], Error>) -> Void) {
         log(.fetchBidderInfoStarted(request))
         let placementFormat: PlacementFormat
         switch request.format {
-        case .banner:
+        case PartnerAdFormats.banner:
             placementFormat = .banner
-        case .interstitial:
+        case PartnerAdFormats.interstitial, PartnerAdFormats.rewardedInterstitial:
             placementFormat = .interstitial
-        case .rewarded:
+        case PartnerAdFormats.rewarded:
             placementFormat = .rewarded
         default:
-            // Not using the `.adaptiveBanner` or `.rewardedInterstitial` cases directly to maintain
-            // backward compatibility with Chartboost Mediation 4.0
-            if request.format.rawValue == "adaptive_banner" {
-                placementFormat = .banner
-            } else if request.format.rawValue == "rewarded_interstitial" {
-                placementFormat = .interstitial
-            } else {
-                let error = error(.prebidFailureInvalidArgument, description: "Unsupported ad format")
-                log(.fetchBidderInfoFailed(request, error: error))
-                completion(nil)
-                return
-            }
+            let error = error(.prebidFailureUnsupportedAdFormat)
+            log(.fetchBidderInfoFailed(request, error: error))
+            completion(.failure(error))
+            return
         }
 
         BidMachineSdk.shared.token(with: placementFormat) { [self] token in
-            guard let token else {
-                let error = error(.prebidFailureInvalidArgument, description: "No bidding token provided by BidMachine SDK")
-                log(.fetchBidderInfoFailed(request, error: error))
-                completion(nil)
-                return
-            }
             log(.fetchBidderInfoSucceeded(request))
-            // Backend will use a default URL if it receives an empty string in `encoded_key`
-            let encodedKey = BidMachineSdk.shared.extrasValue(by: "chartboost_encoded_url_key") as? String ?? ""
-            completion(["token": token, "encoded_key": encodedKey])
+            completion(.success(token.map { ["token": $0] } ?? [:]))
         }
     }
-    
-    /// Indicates if GDPR applies or not and the user's GDPR consent status.
-    /// - parameter applies: `true` if GDPR applies, `false` if not, `nil` if the publisher has not provided this information.
-    /// - parameter status: One of the `GDPRConsentStatus` values depending on the user's preference.
-    func setGDPR(applies: Bool?, status: GDPRConsentStatus) {
-        if let applies = applies {
-            log(.privacyUpdated(setting: "gdprZone", value: applies))
-            BidMachineSdk.shared.regulationInfo.populate { $0.withGDPRZone(applies) }
+
+    /// Indicates that the user consent has changed.
+    /// - parameter consents: The new consents value, including both modified and unmodified consents.
+    /// - parameter modifiedKeys: A set containing all the keys that changed.
+    func setConsents(_ consents: [ConsentKey: ConsentValue], modifiedKeys: Set<ConsentKey>) {
+        if modifiedKeys.contains(configuration.partnerID) || modifiedKeys.contains(ConsentKeys.gdprConsentGiven) {
+            let consent = consents[configuration.partnerID] ?? consents[ConsentKeys.gdprConsentGiven]
+            switch consent {
+            case ConsentValues.granted:
+                BidMachineSdk.shared.regulationInfo.populate { $0.withGDPRConsent(true) }
+                log(.privacyUpdated(setting: "gdprConsent", value: true))
+            case ConsentValues.denied:
+                BidMachineSdk.shared.regulationInfo.populate { $0.withGDPRConsent(false) }
+                log(.privacyUpdated(setting: "gdprConsent", value: false))
+            default:
+                break   // do nothing
+            }
         }
 
-        // In the case where status == .unknown, we do nothing
-        if status == .denied {
-            log(.privacyUpdated(setting: "gdprConsent", value: false))
-            BidMachineSdk.shared.regulationInfo.populate { $0.withGDPRConsent(false) }
-        } else if status == .granted {
-            log(.privacyUpdated(setting: "gdprConsent", value: true))
-            BidMachineSdk.shared.regulationInfo.populate { $0.withGDPRConsent(true) }
+        if modifiedKeys.contains(ConsentKeys.tcf), let tcfString = consents[ConsentKeys.tcf] {
+            BidMachineSdk.shared.regulationInfo.populate {
+                if let gdprApplies = UserDefaults.standard.string(forKey: .tcfGDPRAppliesKey) {
+                    $0.withGDPRZone(gdprApplies == .tcgGDPRAppliesTrue)
+                } else if let gdprConsent = consents[ConsentKeys.gdprConsentGiven], gdprConsent == ConsentValues.doesNotApply {
+                    $0.withGDPRZone(false)
+                }
+                $0.withGDPRConsentString(tcfString)
+            }
+            log(.privacyUpdated(setting: "gdprConsentString", value: tcfString))
+        }
+
+        if modifiedKeys.contains(ConsentKeys.usp), let privacyString = consents[ConsentKeys.usp] {
+            log(.privacyUpdated(setting: "usPrivacyString", value: privacyString))
+            BidMachineSdk.shared.regulationInfo.populate { $0.withUSPrivacyString(privacyString) }
         }
     }
-    
-    /// Indicates the CCPA status both as a boolean and as an IAB US privacy string.
-    /// - parameter hasGivenConsent: A boolean indicating if the user has given consent.
-    /// - parameter privacyString: An IAB-compliant string indicating the CCPA status.
-    func setCCPA(hasGivenConsent: Bool, privacyString: String) {
-        log(.privacyUpdated(setting: "usPrivacyString", value: privacyString))
-        BidMachineSdk.shared.regulationInfo.populate { $0.withUSPrivacyString(privacyString) }
+
+    /// Indicates that the user is underage signal has changed.
+    /// - parameter isUserUnderage: `true` if the user is underage as determined by the publisher, `false` otherwise.
+    func setIsUserUnderage(_ isUserUnderage: Bool) {
+        log(.privacyUpdated(setting: "COPPA", value: isUserUnderage))
+        BidMachineSdk.shared.regulationInfo.populate { $0.withCOPPA(isUserUnderage) }
     }
-    
-    /// Indicates if the user is subject to COPPA or not.
-    /// - parameter isChildDirected: `true` if the user is subject to COPPA, `false` otherwise.
-    func setCOPPA(isChildDirected: Bool) {
-        log(.privacyUpdated(setting: "COPPA", value: isChildDirected))
-        BidMachineSdk.shared.regulationInfo.populate { $0.withCOPPA(isChildDirected) }
+
+    /// Creates a new banner ad object in charge of communicating with a single partner SDK ad instance.
+    /// Chartboost Mediation SDK calls this method to create a new ad for each new load request. Ad instances are never reused.
+    /// Chartboost Mediation SDK takes care of storing and disposing of ad instances so you don't need to.
+    /// ``PartnerAd/invalidate()`` is called on ads before disposing of them in case partners need to perform any custom logic before the
+    /// object gets destroyed.
+    /// If, for some reason, a new ad cannot be provided, an error should be thrown.
+    /// Chartboost Mediation SDK will always call this method from the main thread.
+    /// - parameter request: Information about the ad load request.
+    /// - parameter delegate: The delegate that will receive ad life-cycle notifications.
+    func makeBannerAd(request: PartnerAdLoadRequest, delegate: PartnerAdDelegate) throws -> PartnerBannerAd {
+        // Multiple banner loads are allowed so a banner prefetch can happen during auto-refresh.
+        // ChartboostMediationSDK 5.x does not support loading more than 2 banners with the same placement, and the partner may or may not 
+        // support it.
+        BidMachineAdapterBannerAd(adapter: self, request: request, delegate: delegate)
     }
-    
+
     /// Creates a new ad object in charge of communicating with a single partner SDK ad instance.
     /// Chartboost Mediation SDK calls this method to create a new ad for each new load request. Ad instances are never reused.
     /// Chartboost Mediation SDK takes care of storing and disposing of ad instances so you don't need to.
-    /// `invalidate()` is called on ads before disposing of them in case partners need to perform any custom logic before the object gets destroyed.
+    /// ``PartnerAd/invalidate()`` is called on ads before disposing of them in case partners need to perform any custom logic before the
+    /// object gets destroyed.
     /// If, for some reason, a new ad cannot be provided, an error should be thrown.
     /// - parameter request: Information about the ad load request.
     /// - parameter delegate: The delegate that will receive ad life-cycle notifications.
-    func makeAd(request: PartnerAdLoadRequest, delegate: PartnerAdDelegate) throws -> PartnerAd {
+    func makeFullscreenAd(request: PartnerAdLoadRequest, delegate: PartnerAdDelegate) throws -> PartnerFullscreenAd {
         // Prevent multiple loads for the same partner placement, since the partner SDK cannot handle them.
-        // Banner loads are allowed so a banner prefetch can happen during auto-refresh.
-        // ChartboostMediationSDK 4.x does not support loading more than 2 banners with the same placement, and the partner may or may not support it.
-        guard !storage.ads.contains(where: { $0.request.partnerPlacement == request.partnerPlacement })
-            || request.format == .banner
-        else {
-            log("Failed to load ad for already loading placement \(request.partnerPlacement)")
+        guard !storage.ads.contains(where: { $0.request.partnerPlacement == request.partnerPlacement }) else {
+            log(.skippedLoadForAlreadyLoadingPlacement(request))
             throw error(.loadFailureLoadInProgress)
         }
-        
+
         switch request.format {
-        case .interstitial:
+        case PartnerAdFormats.interstitial:
             return BidMachineAdapterInterstitialAd(adapter: self, request: request, delegate: delegate)
-        case .rewarded:
+        case PartnerAdFormats.rewarded, PartnerAdFormats.rewardedInterstitial:
             return BidMachineAdapterRewardedAd(adapter: self, request: request, delegate: delegate)
-        case .banner:
-            return BidMachineAdapterBannerAd(adapter: self, request: request, delegate: delegate)
         default:
-            // Not using the `.adaptiveBanner` or `.rewardedInterstitial cases directly to maintain
-            // backward compatibility with Chartboost Mediation 4.0
-            if request.format.rawValue == "adaptive_banner" {
-                return BidMachineAdapterBannerAd(adapter: self, request: request, delegate: delegate)
-            } else if request.format.rawValue == "rewarded_interstitial" {
-                return BidMachineAdapterRewardedAd(adapter: self, request: request, delegate: delegate)
-            } else {
-                throw error(.loadFailureUnsupportedAdFormat)
-            }
+            throw error(.loadFailureUnsupportedAdFormat)
         }
     }
+}
+
+extension String {
+    /// This key for the TCFv2 string when stored in UserDefaults is defined by the IAB in Consent Management Platform API Final 
+    /// v.2.2 May 2023
+    /// https://github.com/InteractiveAdvertisingBureau/GDPR-Transparency-and-Consent-Framework/blob/master/TCFv2/IAB%20Tech%20Lab%20-%20CMP%20API%20v2.md#what-is-the-cmp-in-app-internal-structure-for-the-defined-api
+    fileprivate static let tcfGDPRAppliesKey = "IABTCF_gdprApplies"
+    /// The value for `tcfGDPRAppliesKey` that indicates that GDPR does apply.
+    fileprivate static let tcgGDPRAppliesTrue = "1"
 }

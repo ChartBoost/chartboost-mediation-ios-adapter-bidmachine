@@ -3,11 +3,16 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file.
 
+import BidMachine
 import ChartboostMediationSDK
 import Foundation
-import BidMachine
 
-final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerAd {
+final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerBannerAd {
+    /// The partner banner ad view to display.
+    var view: UIView?
+
+    /// The loaded partner ad banner size.
+    var size: PartnerBannerSize?
 
     /// The BidMachineSDK ad instance.
     private var ad: BidMachineBanner?
@@ -15,14 +20,17 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerAd {
     /// Loads an ad.
     /// - parameter viewController: The view controller on which the ad will be presented on. Needed on load for some banners.
     /// - parameter completion: Closure to be performed once the ad has been loaded.
-    func load(with viewController: UIViewController?, completion: @escaping (Result<PartnerEventDetails, Error>) -> Void) {
+    func load(with viewController: UIViewController?, completion: @escaping (Error?) -> Void) {
         log(.loadStarted)
 
-        guard let size = request.size,
-              let bannerType = PlacementFormat.from(size: fixedBannerSize(for: size)) else {
+        guard
+            let requestedSize = request.bannerSize,
+            let loadedSize = BannerSize.largestStandardFixedSizeThatFits(in: requestedSize),
+            let bannerType = loadedSize.bidMachineAdSize
+        else {
             let error = error(.loadFailureInvalidBannerSize)
             log(.loadFailed(error))
-            completion(.failure(error))
+            completion(error)
             return
         }
 
@@ -32,10 +40,11 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerAd {
             config = try BidMachineSdk.shared.requestConfiguration(bannerType)
         } catch {
             self.log(.loadFailed(error))
-            completion(.failure(error))
+            completion(error)
             return
         }
 
+        self.size = PartnerBannerSize(size: loadedSize.size, type: .fixed)
         self.loadCompletion = completion
 
         if let adm = request.adm {
@@ -45,7 +54,7 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerAd {
                 guard let price else {
                     let error = error(.loadFailureInvalidAdRequest)
                     self.log(.loadFailed(error))
-                    completion(.failure(error))
+                    completion(error)
                     return
                 }
                 // On Android the UUID is automatically generated, on iOS it must be passed in.
@@ -61,24 +70,16 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerAd {
                 return
             }
             guard let ad else {
-                let chartboostMediationError = self.error(.loadFailureUnknown, error: error)
-                self.log(.loadFailed(chartboostMediationError))
-                completion(.failure(chartboostMediationError))
+                let error = self.error(.loadFailureUnknown, error: error)
+                self.log(.loadFailed(error))
+                completion(error)
                 return
             }
-            self.inlineView = ad
+            self.view = ad
             ad.controller = viewController
             ad.delegate = self
             ad.loadAd()
         }
-    }
-    
-    /// Shows a loaded ad.
-    /// It will never get called for banner ads. You may leave the implementation blank for that ad format.
-    /// - parameter viewController: The view controller on which the ad will be presented on.
-    /// - parameter completion: Closure to be performed once the ad has been shown.
-    func show(with viewController: UIViewController, completion: @escaping (Result<PartnerEventDetails, Error>) -> Void) {
-        // no-op
     }
 }
 
@@ -88,26 +89,20 @@ extension BidMachineAdapterBannerAd: BidMachineAdDelegate {
         // after any show checks are done
         guard let bannerAdView = ad as? BidMachineBanner,
               bannerAdView.canShow else {
-            let loadError = error(.loadFailureUnknown)
-            log(.loadFailed(loadError))
-            loadCompletion?(.failure(loadError)) ?? log(.loadResultIgnored)
+            let error = error(.loadFailureUnknown)
+            log(.loadFailed(error))
+            loadCompletion?(error) ?? log(.loadResultIgnored)
             loadCompletion = nil
             return
         }
         log(.loadSucceeded)
-        var partnerDetails: [String: String] = [:]
-        if let loadedSize = fixedBannerSize(for: request.size ?? IABStandardAdSize) {
-            partnerDetails["bannerWidth"] = "\(loadedSize.width)"
-            partnerDetails["bannerHeight"] = "\(loadedSize.height)"
-            partnerDetails["bannerType"] = "0" // Fixed banner
-        }
-        loadCompletion?(.success([:])) ?? log(.loadResultIgnored)
+        loadCompletion?(nil) ?? log(.loadResultIgnored)
         loadCompletion = nil
     }
 
     func didFailLoadAd(_ ad: BidMachine.BidMachineAdProtocol, _ error: Error) {
         log(.loadFailed(error))
-        loadCompletion?(.failure(error)) ?? log(.loadResultIgnored)
+        loadCompletion?(error) ?? log(.loadResultIgnored)
         loadCompletion = nil
     }
 
@@ -133,17 +128,17 @@ extension BidMachineAdapterBannerAd: BidMachineAdDelegate {
 
     func didUserInteraction(_ ad: BidMachineAdProtocol) {
         log(.didClick(error: nil))
-        delegate?.didClick(self, details: [:]) ?? log(.delegateUnavailable)
+        delegate?.didClick(self) ?? log(.delegateUnavailable)
     }
 
     func didExpired(_ ad: BidMachineAdProtocol) {
         log(.didExpire)
-        delegate?.didExpire(self, details: [:]) ?? log(.delegateUnavailable)
+        delegate?.didExpire(self) ?? log(.delegateUnavailable)
     }
 
     func didTrackImpression(_ ad: BidMachineAdProtocol) {
         log(.didTrackImpression)
-        self.delegate?.didTrackImpression(self, details: [:]) ?? log(.delegateUnavailable)
+        self.delegate?.didTrackImpression(self) ?? log(.delegateUnavailable)
     }
 
     func didTrackInteraction(_ ad: BidMachineAdProtocol) {
@@ -151,35 +146,18 @@ extension BidMachineAdapterBannerAd: BidMachineAdDelegate {
     }
 }
 
-extension PlacementFormat {
-    static func from(size: CGSize?) -> PlacementFormat? {
-        // Translate IAB size to a BidMachine placement format
-        switch size {
-        case IABStandardAdSize:
-            return .banner320x50
-        case IABMediumAdSize:
-            return .banner300x250
-        case IABLeaderboardAdSize:
-            return .banner728x90
+extension BannerSize {
+    fileprivate var bidMachineAdSize: PlacementFormat? {
+        switch self {
+        case .standard:
+            .banner320x50
+        case .medium:
+            .banner300x250
+        case .leaderboard:
+            .banner728x90
         default:
             // Not a standard IAB size
-            return nil
+            nil
         }
-    }
-}
-
-extension BidMachineAdapterBannerAd {
-    private func fixedBannerSize(for requestedSize: CGSize) -> CGSize? {
-        let sizes = [IABLeaderboardAdSize, IABMediumAdSize, IABStandardAdSize]
-        // Find the largest size that can fit in the requested size.
-        for size in sizes {
-            // If height is 0, the pub has requested an ad of any height, so only the width matters.
-            if requestedSize.width >= size.width &&
-                (size.height == 0 || requestedSize.height >= size.height) {
-                return size
-            }
-        }
-        // The requested size cannot fit any fixed size banners.
-        return nil
     }
 }
