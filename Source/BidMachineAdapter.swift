@@ -83,7 +83,18 @@ final class BidMachineAdapter: PartnerAdapter {
             return
         }
 
-        BidMachineSdk.shared.token(with: placementFormat) { [self] token in
+        let placement: BidMachinePlacement
+        do {
+            placement = try BidMachineSdk.shared.placement(from: placementFormat) {
+                $0.withPlacementId(request.mediationPlacement)
+            }
+        } catch {
+            log(.fetchBidderInfoFailed(request, error: error))
+            completion(.failure(error))
+            return
+        }
+
+        BidMachineSdk.shared.token(placement: placement) { [self] token in
             log(.fetchBidderInfoSucceeded(request))
             // Backend will use a default URL if it receives an empty string in `encoded_key`
             let encodedKey = BidMachineSdk.shared.extrasValue(by: "chartboost_encoded_url_key") as? String ?? ""

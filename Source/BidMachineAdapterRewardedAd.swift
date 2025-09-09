@@ -16,47 +16,51 @@ final class BidMachineAdapterRewardedAd: BidMachineAdapterAd, PartnerFullscreenA
     /// - parameter completion: Closure to be performed once the ad has been loaded.
     func load(with viewController: UIViewController?, completion: @escaping (Error?) -> Void) {
         log(.loadStarted)
+        loadCompletion = completion
 
-        // Make request configuration
-        let config: BidMachineRequestConfigurationProtocol
+        // only the throwing call in do/catch
+        let placement: BidMachinePlacement
         do {
-            config = try BidMachineSdk.shared.requestConfiguration(.rewarded)
+            placement = try BidMachineSdk.shared.placement(from: .rewarded) {
+                $0.withPlacementId(self.request.partnerPlacement)
+            }
         } catch {
-            self.log(.loadFailed(error))
+            log(.loadFailed(error))
             completion(error)
             return
         }
 
-        loadCompletion = completion
+        // pre-bind to avoid capturing self in the builder
+        let adm   = self.request.adm
+        let price = self.price
 
-        if let adm = request.adm {
-            config.populate { $0.withPayload(adm) }
-        } else {
-            config.populate {
-                guard let price else {
-                    let error = error(.loadFailureInvalidAdRequest)
-                    self.log(.loadFailed(error))
-                    completion(error)
-                    return
-                }
+        if adm == nil && price == nil {
+            let error = error(.loadFailureInvalidAdRequest)
+            log(.loadFailed(error))
+            completion(error)
+            return
+        }
+
+        let request = BidMachineSdk.shared.auctionRequest(placement: placement) { builder in
+            if let adm {
+                builder.withPayload(adm)
+            } else if let price {
                 // On Android the UUID is automatically generated, on iOS it must be passed in.
                 // https://docs.bidmachine.io/docs/in-house-mediation-android#price-floor-parameters
                 // https://docs.bidmachine.io/docs/ad-request#parameters
-                $0.withPlacementId(request.partnerPlacement)
-                .appendPriceFloor(price, UUID().uuidString)
+                builder.appendPriceFloor(price, UUID().uuidString)
             }
         }
 
-        BidMachineSdk.shared.rewarded(config) { [weak self] ad, error in
-            guard let self else {
-                return
-            }
-            guard let ad else {
+        BidMachineSdk.shared.rewarded(request: request) { [weak self] rewarded, error in
+            guard let self else { return }
+            guard let ad = rewarded else {
                 let error = self.error(.loadFailureUnknown, error: error)
                 self.log(.loadFailed(error))
                 completion(error)
                 return
             }
+
             self.ad = ad
             ad.delegate = self
             ad.loadAd()
