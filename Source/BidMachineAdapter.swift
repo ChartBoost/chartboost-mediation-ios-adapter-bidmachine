@@ -68,14 +68,22 @@ final class BidMachineAdapter: PartnerAdapter {
     /// - parameter completion: Closure to be performed with the fetched info.
     func fetchBidderInformation(request: PartnerAdPreBidRequest, completion: @escaping (Result<[String: String], Error>) -> Void) {
         log(.fetchBidderInfoStarted(request))
-        let placementFormat: PlacementFormat
+        let adFormat: AdFormat
         switch request.format {
         case PartnerAdFormats.banner:
-            placementFormat = .banner
+            guard let bannerSize = request.bannerSize,
+                  let loadedSize = BannerSize.largestStandardFixedSizeThatFits(in: bannerSize),
+                  let bidMachineAdFormat = loadedSize.bidMachineAdSize else {
+                let error = error(.prebidFailureUnsupportedAdFormat)
+                log(.fetchBidderInfoFailed(request, error: error))
+                completion(.failure(error))
+                return
+            }
+            adFormat = bidMachineAdFormat
         case PartnerAdFormats.interstitial, PartnerAdFormats.rewardedInterstitial:
-            placementFormat = .interstitial
+            adFormat = .interstitial
         case PartnerAdFormats.rewarded:
-            placementFormat = .rewarded
+            adFormat = .rewarded
         default:
             let error = error(.prebidFailureUnsupportedAdFormat)
             log(.fetchBidderInfoFailed(request, error: error))
@@ -85,7 +93,7 @@ final class BidMachineAdapter: PartnerAdapter {
 
         let placement: BidMachinePlacement
         do {
-            placement = try BidMachineSdk.shared.placement(from: placementFormat) {
+            placement = try BidMachineSdk.shared.placement(adFormat) {
                 $0.withPlacementId(request.mediationPlacement)
             }
         } catch {

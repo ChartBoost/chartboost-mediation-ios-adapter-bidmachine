@@ -20,7 +20,7 @@ final class BidMachineAdapterInterstitialAd: BidMachineAdapterAd, PartnerFullscr
 
         let placement: BidMachinePlacement
         do {
-            placement = try BidMachineSdk.shared.placement(from: .interstitial) {
+            placement = try BidMachineSdk.shared.placement(.interstitial) {
                 $0.withPlacementId(self.request.partnerPlacement)
             }
         } catch {

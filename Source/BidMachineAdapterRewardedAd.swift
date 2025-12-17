@@ -21,7 +21,7 @@ final class BidMachineAdapterRewardedAd: BidMachineAdapterAd, PartnerFullscreenA
         // only the throwing call in do/catch
         let placement: BidMachinePlacement
         do {
-            placement = try BidMachineSdk.shared.placement(from: .rewarded) {
+            placement = try BidMachineSdk.shared.placement(.rewarded) {
                 $0.withPlacementId(self.request.partnerPlacement)
             }
         } catch {

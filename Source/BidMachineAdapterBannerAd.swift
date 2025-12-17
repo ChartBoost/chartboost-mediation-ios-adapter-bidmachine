@@ -38,7 +38,7 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerBannerAd {
 
         let placement: BidMachinePlacement
         do {
-            placement = try BidMachineSdk.shared.placement(from: bannerType) {
+            placement = try BidMachineSdk.shared.placement(bannerType) {
                 $0.withPlacementId(self.request.partnerPlacement)
             }
         } catch {
@@ -151,7 +151,7 @@ extension BidMachineAdapterBannerAd: BidMachineAdDelegate {
 }
 
 extension BannerSize {
-    fileprivate var bidMachineAdSize: PlacementFormat? {
+    var bidMachineAdSize: AdFormat? {
         switch self {
         case .standard:
             .banner320x50
