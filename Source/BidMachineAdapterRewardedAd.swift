@@ -6,6 +6,7 @@
 import BidMachine
 import ChartboostMediationSDK
 import Foundation
+import UIKit
 
 final class BidMachineAdapterRewardedAd: BidMachineAdapterAd, PartnerFullscreenAd {
     /// The BidMachineSDK ad instance.

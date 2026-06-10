@@ -6,6 +6,7 @@
 import BidMachine
 import ChartboostMediationSDK
 import Foundation
+import UIKit
 
 final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerBannerAd {
     /// The partner banner ad view to display.
