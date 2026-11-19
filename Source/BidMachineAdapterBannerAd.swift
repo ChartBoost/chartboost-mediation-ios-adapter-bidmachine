@@ -16,7 +16,7 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerBannerAd {
     var size: PartnerBannerSize?
 
     /// The BidMachineSDK ad instance.
-    private var ad: BidMachineBanner?
+    private var ad: BannerView?
 
     /// Loads an ad.
     /// - parameter viewController: The view controller on which the ad will be presented on. Needed on load for some banners.
@@ -26,10 +26,23 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerBannerAd {
 
         guard
             let requestedSize = request.bannerSize,
-            let loadedSize = BannerSize.largestStandardFixedSizeThatFits(in: requestedSize),
-            let bannerType = loadedSize.bidMachineAdSize
+            let loadedSize = ChartboostMediationSDK.BannerSize.largestStandardFixedSizeThatFits(in: requestedSize),
+            let bannerSize = loadedSize.bidMachineAdSize
         else {
             let error = error(.loadFailureInvalidBannerSize)
+            log(.loadFailed(error))
+            completion(error)
+            return
+        }
+        guard let bidMachine else {
+            let error = error(.loadFailurePartnerNotInitialized)
+            log(.loadFailed(error))
+            completion(error)
+            return
+        }
+        // A non-programmatic load needs the waterfall price to send as BidMachine's price floor.
+        guard request.adm != nil || price != nil else {
+            let error = error(.loadFailureInvalidAdRequest)
             log(.loadFailed(error))
             completion(error)
             return
@@ -37,129 +50,85 @@ final class BidMachineAdapterBannerAd: BidMachineAdapterAd, PartnerBannerAd {
         self.size = PartnerBannerSize(size: loadedSize.size, type: .fixed)
         self.loadCompletion = completion
 
-        let placement: BidMachinePlacement
-        do {
-            placement = try BidMachineSdk.shared.placement(bannerType) {
-                $0.withPlacementId(self.request.partnerPlacement)
+        let handleLoadResult: (BannerView?, BidMachineError?) -> Void = { [weak self, weak viewController] banner, error in
+            // BidMachine calls this completion on the main thread. The hop keeps access to the main-actor ad safe if it does not.
+            DispatchQueue.main.async {
+                guard let self else { return }
+                guard let banner else {
+                    let error = self.error(.loadFailureUnknown, error: error)
+                    self.log(.loadFailed(error))
+                    completion(error)
+                    return
+                }
+
+                self.ad = banner
+                self.view = banner
+                banner.rootViewController = viewController
+                banner.delegate = self
+                // Because 'show' isn't a separate step for banners, we don't declare a load success until
+                // after any show checks are done
+                guard banner.canShow else {
+                    self.ad = nil
+                    self.view = nil
+                    let error = self.error(.loadFailureUnknown)
+                    self.log(.loadFailed(error))
+                    self.loadCompletion?(error) ?? self.log(.loadResultIgnored)
+                    self.loadCompletion = nil
+                    return
+                }
+                self.log(.loadSucceeded)
+                self.loadCompletion?(nil) ?? self.log(.loadResultIgnored)
+                self.loadCompletion = nil
             }
-        } catch {
-            log(.loadFailed(error))
-            completion(error)
-            return
         }
 
-        // pre-bind to avoid capturing self in the builder
-        let adm   = self.request.adm
-        let price = self.price
-
-        if adm == nil && price == nil {
-            let error = error(.loadFailureInvalidAdRequest)
-            log(.loadFailed(error))
-            completion(error)
-            return
-        }
-
-        let request = BidMachineSdk.shared.auctionRequest(placement: placement) { builder in
-            if let adm {
-                builder.withPayload(adm)
-            } else if let price {
-                // On Android the UUID is automatically generated, on iOS it must be passed in.
-                // https://docs.bidmachine.io/docs/in-house-mediation-android#price-floor-parameters
-                // https://docs.bidmachine.io/docs/ad-request#parameters
-                builder.appendPriceFloor(price, UUID().uuidString)
-            }
-        }
-
-        BidMachineSdk.shared.banner(request: request) { [weak self, weak viewController] banner, error in
-            guard let self else { return }
-            guard let banner else {
-                let error = self.error(.loadFailureUnknown, error: error)
-                self.log(.loadFailed(error))
-                completion(error)
-                return
-            }
-
-            self.ad = banner
-            self.view = banner
-            banner.controller = viewController
-            banner.delegate = self
-            banner.loadAd()
+        if let adm = request.adm {
+            bidMachine.loadBanner(payload: adm, size: bannerSize, completion: handleLoadResult)
+        } else {
+            bidMachine.loadBanner(placement: placement, size: bannerSize, completion: handleLoadResult)
         }
     }
 }
 
-extension BidMachineAdapterBannerAd: BidMachineAdDelegate {
-    func didLoadAd(_ ad: BidMachine.BidMachineAdProtocol) {
-        // Because 'show' isn't a separate step for banners, we don't declare a load success until
-        // after any show checks are done
-        guard let bannerAdView = ad as? BidMachineBanner,
-              bannerAdView.canShow else {
-            let error = error(.loadFailureUnknown)
-            log(.loadFailed(error))
-            loadCompletion?(error) ?? log(.loadResultIgnored)
-            loadCompletion = nil
-            return
-        }
-        log(.loadSucceeded)
-        loadCompletion?(nil) ?? log(.loadResultIgnored)
-        loadCompletion = nil
-    }
-
-    func didFailLoadAd(_ ad: BidMachine.BidMachineAdProtocol, _ error: Error) {
-        log(.loadFailed(error))
-        loadCompletion?(error) ?? log(.loadResultIgnored)
-        loadCompletion = nil
-    }
-
-    func didPresentAd(_ ad: BidMachineAdProtocol) {
+extension BidMachineAdapterBannerAd: BannerViewDelegate {
+    @MainActor
+    func didPresent(_ ad: BannerView) {
         log(.delegateCallIgnored)
     }
 
-    func didFailPresentAd(_ ad: BidMachineAdProtocol, _ error: Error) {
+    @MainActor
+    func didFailPresent(_ ad: BannerView, error: BidMachineError) {
         log(.delegateCallIgnored)
     }
 
-    func didDismissAd(_ ad: BidMachineAdProtocol) {
-        log(.delegateCallIgnored)
+    @MainActor
+    func didTrackImpression(_ ad: BannerView) {
+        log(.didTrackImpression)
+        delegate?.didTrackImpression(self) ?? log(.delegateUnavailable)
     }
 
-    func willPresentScreen(_ ad: BidMachineAdProtocol) {
-        log(.delegateCallIgnored)
-    }
-
-    func didDismissScreen(_ ad: BidMachineAdProtocol) {
-        log(.delegateCallIgnored)
-    }
-
-    func didUserInteraction(_ ad: BidMachineAdProtocol) {
+    @MainActor
+    func didClick(_ ad: BannerView) {
         log(.didClick(error: nil))
         delegate?.didClick(self) ?? log(.delegateUnavailable)
     }
 
-    func didExpired(_ ad: BidMachineAdProtocol) {
+    @MainActor
+    func didExpire(_ ad: BannerView) {
         log(.didExpire)
         delegate?.didExpire(self) ?? log(.delegateUnavailable)
     }
-
-    func didTrackImpression(_ ad: BidMachineAdProtocol) {
-        log(.didTrackImpression)
-        self.delegate?.didTrackImpression(self) ?? log(.delegateUnavailable)
-    }
-
-    func didTrackInteraction(_ ad: BidMachineAdProtocol) {
-        log(.delegateCallIgnored)
-    }
 }
 
-extension BannerSize {
-    var bidMachineAdSize: AdFormat? {
+extension ChartboostMediationSDK.BannerSize {
+    var bidMachineAdSize: BidMachine.BannerSize? {
         switch self {
         case .standard:
-            .banner320x50
+            .banner
         case .medium:
-            .banner300x250
+            .mrec
         case .leaderboard:
-            .banner728x90
+            .leaderboard
         default:
             // Not a standard IAB size
             nil

@@ -18,6 +18,12 @@ final class BidMachineAdapter: PartnerAdapter {
     /// Ad storage managed by Chartboost Mediation SDK.
     let storage: PartnerAdapterStorage
 
+    /// The BidMachine SDK instance created during set up.
+    private(set) var instance: BidMachineInstance?
+
+    /// Supplies privacy signals to the BidMachine SDK.
+    private let consentProvider = BidMachineAdapterConsentProvider()
+
     /// The designated initializer for the adapter.
     /// Chartboost Mediation SDK will use this constructor to create instances of conforming types.
     /// - parameter storage: An object that exposes storage managed by the Chartboost Mediation SDK to the adapter.
@@ -33,12 +39,8 @@ final class BidMachineAdapter: PartnerAdapter {
     func setUp(with configuration: PartnerConfiguration, completion: @escaping (Result<PartnerDetails, Error>) -> Void) {
         log(.setUpStarted)
 
-        BidMachineSdk.shared.populate {
-            $0.withTestMode(BidMachineAdapterConfiguration.testMode)
-                .withLoggingMode(BidMachineAdapterConfiguration.logging)
-                .withBidLoggingMode(BidMachineAdapterConfiguration.bidLogging)
-                .withEventLoggingMode(BidMachineAdapterConfiguration.eventLogging)
-        }
+        BidMachineSdk.testMode = BidMachineAdapterConfiguration.testMode
+        BidMachineSdk.isLoggingEnabled = BidMachineAdapterConfiguration.logging
 
         guard let sourceID = configuration.credentials[SOURCE_ID_KEY] as? String else {
             let error = error(.initializationFailureInvalidCredentials, description: "The 'source ID' was invalid")
@@ -47,18 +49,19 @@ final class BidMachineAdapter: PartnerAdapter {
             return
         }
 
-        // Apply initial consents
+        // Apply initial consents. Each call assigns the consent provider to BidMachine, before `initialize` as BidMachine
+        // recommends, so consent applies from the first request.
         setConsents(configuration.consents, modifiedKeys: Set(configuration.consents.keys))
         setIsUserUnderage(configuration.isUserUnderage)
 
         // Initialize the SDK
-        BidMachineSdk.shared.initializeSdk(sourceID)
-        guard BidMachineSdk.shared.isInitialized == true else {
-            let error = error(.initializationFailureUnknown)
-            log(.setUpFailed(error))
-            completion(.failure(error))
-            return
-        }
+        let sdkConfiguration = BidMachine.Configuration()
+        sdkConfiguration.mediationInfo = MediationInfo(
+            name: "chartboost",
+            version: ChartboostMediation.sdkVersion,
+            adapterVersion: BidMachineAdapterConfiguration.adapterVersion
+        )
+        instance = BidMachineSdk.initialize(sourceId: sourceID, configuration: sdkConfiguration)
         log(.setUpSucceded)
         completion(.success([:]))
     }
@@ -68,22 +71,24 @@ final class BidMachineAdapter: PartnerAdapter {
     /// - parameter completion: Closure to be performed with the fetched info.
     func fetchBidderInformation(request: PartnerAdPreBidRequest, completion: @escaping (Result<[String: String], Error>) -> Void) {
         log(.fetchBidderInfoStarted(request))
-        let adFormat: AdFormat
+        guard let instance else {
+            let error = error(.prebidFailureNotInitialized)
+            log(.fetchBidderInfoFailed(request, error: error))
+            completion(.failure(error))
+            return
+        }
+
         switch request.format {
         case PartnerAdFormats.banner:
             guard let bannerSize = request.bannerSize,
-                  let loadedSize = BannerSize.largestStandardFixedSizeThatFits(in: bannerSize),
-                  let bidMachineAdFormat = loadedSize.bidMachineAdSize else {
+                  ChartboostMediationSDK.BannerSize.largestStandardFixedSizeThatFits(in: bannerSize)?.bidMachineAdSize != nil else {
                 let error = error(.prebidFailureUnsupportedAdFormat)
                 log(.fetchBidderInfoFailed(request, error: error))
                 completion(.failure(error))
                 return
             }
-            adFormat = bidMachineAdFormat
-        case PartnerAdFormats.interstitial, PartnerAdFormats.rewardedInterstitial:
-            adFormat = .interstitial
-        case PartnerAdFormats.rewarded:
-            adFormat = .rewarded
+        case PartnerAdFormats.interstitial, PartnerAdFormats.rewardedInterstitial, PartnerAdFormats.rewarded:
+            break
         default:
             let error = error(.prebidFailureUnsupportedAdFormat)
             log(.fetchBidderInfoFailed(request, error: error))
@@ -91,21 +96,16 @@ final class BidMachineAdapter: PartnerAdapter {
             return
         }
 
-        let placement: BidMachinePlacement
-        do {
-            placement = try BidMachineSdk.shared.placement(adFormat) {
-                $0.withPlacementId(request.mediationPlacement)
+        let placement = Placement(id: request.mediationPlacement)
+        instance.collectToken(placements: [placement]) { [self] token, error in
+            // A missing token is not a prebid failure: the bid request still carries `encoded_key`, and BidMachine
+            // simply does not bid. Log the cause so it can be told apart from a no-bid.
+            if let error {
+                log("Token collection failed: \(error)")
             }
-        } catch {
-            log(.fetchBidderInfoFailed(request, error: error))
-            completion(.failure(error))
-            return
-        }
-
-        BidMachineSdk.shared.token(placement: placement) { [self] token in
             log(.fetchBidderInfoSucceeded(request))
             // Backend will use a default URL if it receives an empty string in `encoded_key`
-            let encodedKey = BidMachineSdk.shared.extrasValue(by: "chartboost_encoded_url_key") as? String ?? ""
+            let encodedKey = instance.customParams["chartboost_encoded_url_key"] as? String ?? ""
             completion(.success(token.map { ["token": $0, "encoded_key": encodedKey ] } ?? ["encoded_key": encodedKey]))
         }
     }
@@ -118,39 +118,54 @@ final class BidMachineAdapter: PartnerAdapter {
             let consent = consents[configuration.partnerID] ?? consents[ConsentKeys.gdprConsentGiven]
             switch consent {
             case ConsentValues.granted:
-                BidMachineSdk.shared.regulationInfo.populate { $0.withGDPRConsent(true) }
+                consentProvider.gdprConsent = NSNumber(value: true)
                 log(.privacyUpdated(setting: "gdprConsent", value: true))
             case ConsentValues.denied:
-                BidMachineSdk.shared.regulationInfo.populate { $0.withGDPRConsent(false) }
+                consentProvider.gdprConsent = NSNumber(value: false)
                 log(.privacyUpdated(setting: "gdprConsent", value: false))
             default:
-                break   // do nothing
+                // No usable consent value: clear it so BidMachine falls back to the CMP's TCF string.
+                consentProvider.gdprConsent = nil
+                log(.privacyUpdated(setting: "gdprConsent", value: nil))
             }
         }
 
-        if modifiedKeys.contains(ConsentKeys.tcf), let tcfString = consents[ConsentKeys.tcf] {
-            BidMachineSdk.shared.regulationInfo.populate {
-                if let gdprApplies = UserDefaults.standard.string(forKey: .tcfGDPRAppliesKey) {
-                    $0.withGDPRZone(gdprApplies == .tcgGDPRAppliesTrue)
-                } else if let gdprConsent = consents[ConsentKeys.gdprConsentGiven], gdprConsent == ConsentValues.doesNotApply {
-                    $0.withGDPRZone(false)
-                }
-                $0.withGDPRConsentString(tcfString)
+        if modifiedKeys.contains(ConsentKeys.tcf) || modifiedKeys.contains(ConsentKeys.gdprConsentGiven) {
+            let gdprApplies: Bool?
+            if let gdprAppliesValue = UserDefaults.standard.string(forKey: .tcfGDPRAppliesKey) {
+                gdprApplies = gdprAppliesValue == .tcgGDPRAppliesTrue
+            } else if consents[ConsentKeys.gdprConsentGiven] == ConsentValues.doesNotApply {
+                gdprApplies = false
+            } else {
+                // Not known: clear any earlier value so it is not sent with later requests.
+                gdprApplies = nil
             }
-            log(.privacyUpdated(setting: "gdprConsentString", value: tcfString))
+            consentProvider.gdprApplies = gdprApplies.map { NSNumber(value: $0) }
+            log(.privacyUpdated(setting: "gdprApplies", value: gdprApplies))
         }
 
-        if modifiedKeys.contains(ConsentKeys.usp), let privacyString = consents[ConsentKeys.usp] {
-            log(.privacyUpdated(setting: "usPrivacyString", value: privacyString))
-            BidMachineSdk.shared.regulationInfo.populate { $0.withUSPrivacyString(privacyString) }
+        if modifiedKeys.contains(ConsentKeys.gpp) {
+            let gppString = consents[ConsentKeys.gpp]
+            consentProvider.gppString = gppString
+            log(.privacyUpdated(setting: "gppString", value: gppString))
         }
+
+        applyConsentProvider()
     }
 
     /// Indicates that the user is underage signal has changed.
     /// - parameter isUserUnderage: `true` if the user is underage as determined by the publisher, `false` otherwise.
     func setIsUserUnderage(_ isUserUnderage: Bool) {
         log(.privacyUpdated(setting: "COPPA", value: isUserUnderage))
-        BidMachineSdk.shared.regulationInfo.populate { $0.withCOPPA(isUserUnderage) }
+        consentProvider.coppa = NSNumber(value: isUserUnderage)
+        applyConsentProvider()
+    }
+
+    /// Assigns the consent provider to BidMachine.
+    /// BidMachine reads the provider's values only when it is assigned, so it must be assigned again after every change.
+    /// Assigning unchanged values has no effect.
+    private func applyConsentProvider() {
+        BidMachineSdk.consentProvider = consentProvider
     }
 
     /// Creates a new banner ad object in charge of communicating with a single partner SDK ad instance.
@@ -202,4 +217,14 @@ extension String {
     fileprivate static let tcfGDPRAppliesKey = "IABTCF_gdprApplies"
     /// The value for `tcfGDPRAppliesKey` that indicates that GDPR does apply.
     fileprivate static let tcgGDPRAppliesTrue = "1"
+}
+
+/// Holds the privacy signals the BidMachine SDK reads on demand.
+final class BidMachineAdapterConsentProvider: NSObject, ConsentProvider {
+    var coppa: NSNumber?
+    var gdprApplies: NSNumber?
+    var gdprConsent: NSNumber?
+    let nonPersonalized: NSNumber? = nil
+    var gppString: String?
+    let gppSids: [NSNumber]? = nil
 }

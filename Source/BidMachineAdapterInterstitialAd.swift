@@ -10,59 +10,50 @@ import UIKit
 
 final class BidMachineAdapterInterstitialAd: BidMachineAdapterAd, PartnerFullscreenAd {
     /// The BidMachineSDK ad instance.
-    private var ad: BidMachineInterstitial?
+    private var ad: InterstitialAd?
 
     /// Loads an ad.
     /// - parameter viewController: The view controller on which the ad will be presented on. Needed on load for some banners.
     /// - parameter completion: Closure to be performed once the ad has been loaded.
     func load(with viewController: UIViewController?, completion: @escaping (Error?) -> Void) {
         log(.loadStarted)
-        loadCompletion = completion
-
-        let placement: BidMachinePlacement
-        do {
-            placement = try BidMachineSdk.shared.placement(.interstitial) {
-                $0.withPlacementId(self.request.partnerPlacement)
-            }
-        } catch {
+        guard let bidMachine else {
+            let error = error(.loadFailurePartnerNotInitialized)
             log(.loadFailed(error))
             completion(error)
             return
         }
-
-        // pre-bind to avoid capturing self in the builder
-        let adm   = self.request.adm
-        let price = self.price
-
-        if adm == nil && price == nil {
+        // A non-programmatic load needs the waterfall price to send as BidMachine's price floor.
+        guard request.adm != nil || price != nil else {
             let error = error(.loadFailureInvalidAdRequest)
             log(.loadFailed(error))
             completion(error)
             return
         }
+        loadCompletion = completion
 
-        let request = BidMachineSdk.shared.auctionRequest(placement: placement) { builder in
-            if let adm {
-                builder.withPayload(adm)
-            } else if let price {
-                // On Android the UUID is automatically generated, on iOS it must be passed in.
-                // https://docs.bidmachine.io/docs/in-house-mediation-android#price-floor-parameters
-                // https://docs.bidmachine.io/docs/ad-request#parameters
-                builder.appendPriceFloor(price, UUID().uuidString)
+        let handleLoadResult: (InterstitialAd?, BidMachineError?) -> Void = { [weak self] ad, error in
+            // BidMachine calls this completion on the main thread. The hop keeps access to the main-actor ad safe if it does not.
+            DispatchQueue.main.async {
+                guard let self else { return }
+                guard let ad else {
+                    let error = self.error(.loadFailureUnknown, error: error)
+                    self.log(.loadFailed(error))
+                    completion(error)
+                    return
+                }
+                self.ad = ad
+                ad.delegate = self
+                self.log(.loadSucceeded)
+                self.loadCompletion?(nil) ?? self.log(.loadResultIgnored)
+                self.loadCompletion = nil
             }
         }
 
-        BidMachineSdk.shared.interstitial(request: request) { [weak self] interstitial, error in
-            guard let self else { return }
-            guard let ad = interstitial else {
-                let error = self.error(.loadFailureUnknown, error: error)
-                self.log(.loadFailed(error))
-                completion(error)
-                return
-            }
-            self.ad = ad
-            ad.delegate = self
-            ad.loadAd()
+        if let adm = request.adm {
+            bidMachine.loadInterstitial(payload: adm, completion: handleLoadResult)
+        } else {
+            bidMachine.loadInterstitial(placement: placement, completion: handleLoadResult)
         }
     }
 
@@ -72,72 +63,55 @@ final class BidMachineAdapterInterstitialAd: BidMachineAdapterAd, PartnerFullscr
     /// - parameter completion: Closure to be performed once the ad has been shown.
     func show(with viewController: UIViewController, completion: @escaping (Error?) -> Void) {
         log(.showStarted)
-        ad?.controller = viewController
-        guard let ad, ad.canShow else {
-            let error = error(.showFailureAdNotReady)
-            log(.showFailed(error))
-            completion(error)
-            return
+        MainActor.assumeIsolated {
+            guard let ad, ad.canShow else {
+                let error = error(.showFailureAdNotReady)
+                log(.showFailed(error))
+                completion(error)
+                return
+            }
+            showCompletion = completion
+            ad.show(from: viewController)
         }
-        showCompletion = completion
-        ad.presentAd()
     }
 }
 
-extension BidMachineAdapterInterstitialAd: BidMachineAdDelegate {
-    func didLoadAd(_ ad: BidMachine.BidMachineAdProtocol) {
-        log(.loadSucceeded)
-        loadCompletion?(nil) ?? log(.loadResultIgnored)
-        loadCompletion = nil
-    }
-
-    func didFailLoadAd(_ ad: BidMachine.BidMachineAdProtocol, _ error: Error) {
-        log(.loadFailed(error))
-        loadCompletion?(error) ?? log(.loadResultIgnored)
-        loadCompletion = nil
-    }
-
-    func didPresentAd(_ ad: BidMachineAdProtocol) {
+extension BidMachineAdapterInterstitialAd: InterstitialAdDelegate {
+    @MainActor
+    func didPresent(_ ad: InterstitialAd) {
         log(.showSucceeded)
         showCompletion?(nil) ?? log(.showResultIgnored)
         showCompletion = nil
     }
 
-    func didFailPresentAd(_ ad: BidMachineAdProtocol, _ error: Error) {
+    @MainActor
+    func didFailPresent(_ ad: InterstitialAd, error: BidMachineError) {
         log(.showFailed(error))
         showCompletion?(error) ?? log(.showResultIgnored)
         showCompletion = nil
     }
 
-    func didDismissAd(_ ad: BidMachineAdProtocol) {
-        log(.didDismiss(error: nil))
-        delegate?.didDismiss(self, error: nil) ?? log(.delegateUnavailable)
+    @MainActor
+    func didTrackImpression(_ ad: InterstitialAd) {
+        log(.didTrackImpression)
+        delegate?.didTrackImpression(self) ?? log(.delegateUnavailable)
     }
 
-    func willPresentScreen(_ ad: BidMachineAdProtocol) {
-        log(.delegateCallIgnored)
-    }
-
-    func didDismissScreen(_ ad: BidMachineAdProtocol) {
-        log(.delegateCallIgnored)
-    }
-
-    func didUserInteraction(_ ad: BidMachineAdProtocol) {
+    @MainActor
+    func didClick(_ ad: InterstitialAd) {
         log(.didClick(error: nil))
         delegate?.didClick(self) ?? log(.delegateUnavailable)
     }
 
-    func didExpired(_ ad: BidMachineAdProtocol) {
+    @MainActor
+    func didDismiss(_ ad: InterstitialAd) {
+        log(.didDismiss(error: nil))
+        delegate?.didDismiss(self, error: nil) ?? log(.delegateUnavailable)
+    }
+
+    @MainActor
+    func didExpire(_ ad: InterstitialAd) {
         log(.didExpire)
         delegate?.didExpire(self) ?? log(.delegateUnavailable)
-    }
-
-    func didTrackImpression(_ ad: BidMachineAdProtocol) {
-        log(.didTrackImpression)
-        self.delegate?.didTrackImpression(self) ?? log(.delegateUnavailable)
-    }
-
-    func didTrackInteraction(_ ad: BidMachineAdProtocol) {
-        log(.delegateCallIgnored)
     }
 }

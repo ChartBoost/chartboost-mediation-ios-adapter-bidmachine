@@ -11,6 +11,13 @@ All official releases can be found on this repository's [releases page](https://
 
 ## Mediation 5
 
+### 5.4.0.0.0
+- This version of the adapter has been certified with BidMachine 4.0.0.
+- Migrate to the BidMachine 4.0.0 API.
+- Deprecate `BidMachineAdapterConfiguration.bidLogging` and `eventLogging`, which no longer have an effect. Use `logging` instead.
+- Pass the GPP string to BidMachine.
+- Stop passing the TCF and US Privacy strings to BidMachine. BidMachine 4.0.0 reads them from `UserDefaults` itself.
+
 ### 5.3.8.0.0
 - This version of the adapter has been certified with BidMachine 3.8.0.
 

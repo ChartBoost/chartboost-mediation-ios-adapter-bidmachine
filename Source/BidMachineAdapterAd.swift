@@ -3,6 +3,7 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file.
 
+import BidMachine
 import ChartboostMediationSDK
 import Foundation
 
@@ -34,6 +35,16 @@ class BidMachineAdapterAd: NSObject {
         let setting = request.partnerSettings["price"]
         let priceNSNum = setting as? NSNumber
         return priceNSNum?.doubleValue
+    }
+
+    /// The placement for a non-programmatic load, with the waterfall item price as BidMachine's price floor.
+    var placement: Placement {
+        Placement(id: request.partnerPlacement, extras: price.map { ["price_floor": $0] } ?? [:])
+    }
+
+    /// The BidMachine SDK instance created by the adapter during set up.
+    var bidMachine: BidMachineInstance? {
+        (adapter as? BidMachineAdapter)?.instance
     }
 
     init(adapter: PartnerAdapter, request: PartnerAdLoadRequest, delegate: PartnerAdDelegate) {

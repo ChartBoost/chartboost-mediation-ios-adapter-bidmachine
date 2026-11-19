@@ -19,7 +19,7 @@ import Foundation
     /// the last digit is the adapter's build version, and intermediate digits are the partner SDK's version.
     /// Format: `<Chartboost Mediation major version>.<Partner major version>.<Partner minor version>.<Partner patch version>.
     /// <Partner build version>.<Adapter build version>` where `.<Partner build version>` is optional.
-    @objc public static let adapterVersion = "5.3.8.0.0"
+    @objc public static let adapterVersion = "5.4.0.0.0"
 
     /// The partner's unique identifier.
     @objc public static let partnerID = "bidmachine"
@@ -35,11 +35,11 @@ import Foundation
     /// Default value is 'false'.
     @objc public static var logging = false
 
-    /// Init flag for turning on BidMachine SDK bidding logging.
-    /// Default value is 'false'.
+    /// Has no effect. The BidMachine SDK no longer exposes separate bidding logging.
+    @available(*, deprecated, message: "BidMachine SDK 4.0.0 no longer supports separate bid logging. Use `logging` instead.")
     @objc public static var bidLogging = false
 
-    /// Init flag for turning on BidMachine SDK event logging.
-    /// Default value is 'false'.
+    /// Has no effect. The BidMachine SDK no longer exposes separate event logging.
+    @available(*, deprecated, message: "BidMachine SDK 4.0.0 no longer supports separate event logging. Use `logging` instead.")
     @objc public static var eventLogging = false
 }
